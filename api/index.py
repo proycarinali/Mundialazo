@@ -1,0 +1,338 @@
+import json
+import os
+import random
+import requests
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from openai import OpenAI
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+GROK_API_KEY = os.environ.get("GROK_API_KEY")
+FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY")
+
+# ─── Archivos RAG ────────────────────────────────────────────────────────────
+DIR = os.path.dirname(__file__)
+CACHE_FILE    = os.path.join(DIR, "preguntas_cache.json")
+PARTIDO_FILE  = os.path.join(DIR, "partido_cache.json")
+
+# ─── Cliente Groq ─────────────────────────────────────────────────────────────
+grok_client = None
+if GROK_API_KEY:
+    grok_client = OpenAI(
+        api_key=GROK_API_KEY,
+        base_url="https://api.groq.com/openai/v1"
+    )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  HELPERS RAG
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def cargar_partido_rag() -> dict:
+    """Carga el partido guardado en RAG. Devuelve {} si no existe."""
+    if os.path.exists(PARTIDO_FILE):
+        try:
+            with open(PARTIDO_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def guardar_partido_rag(partido: dict):
+    with open(PARTIDO_FILE, "w", encoding="utf-8") as f:
+        json.dump(partido, f, ensure_ascii=False, indent=2)
+
+
+def cargar_preguntas_rag() -> list:
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list) and len(data) >= 10:
+                    return data
+        except Exception:
+            pass
+    return []
+
+
+def guardar_preguntas_rag(preguntas: list):
+    with open(CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(preguntas, f, ensure_ascii=False, indent=2)
+
+
+def limpiar_rag():
+    """Borra ambos archivos de caché."""
+    for f in [CACHE_FILE, PARTIDO_FILE]:
+        if os.path.exists(f):
+            os.remove(f)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  FOOTBALL API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def obtener_jugadores_fixture(fixture_id: int) -> list:
+    """Devuelve estadísticas de jugadores para un fixture dado."""
+    headers = {
+        "x-apisports-key": FOOTBALL_API_KEY or "",
+        "x-rapidapi-host": "v3.football.api-sports.io"
+    }
+    jugadores = []
+    try:
+        res = requests.get(
+            f"https://v3.football.api-sports.io/fixtures/players?fixture={fixture_id}",
+            headers=headers, timeout=10
+        )
+        if res.status_code == 200:
+            data = res.json()
+            for team in data.get("response", []):
+                for player in team.get("players", []):
+                    stats = player.get("statistics", [{}])[0]
+                    jugadores.append({
+                        "nombre":            player["player"]["name"],
+                        "posicion":          stats.get("games", {}).get("position", "N/A"),
+                        "minutos":           stats.get("games", {}).get("minutes", 0),
+                        "calificacion":      stats.get("games", {}).get("rating", "N/A"),
+                        "goles":             stats.get("goals", {}).get("total", 0),
+                        "asistencias":       stats.get("goals", {}).get("assists", 0),
+                        "tiros_total":       stats.get("shots", {}).get("total", 0),
+                        "tiros_al_arco":     stats.get("shots", {}).get("on", 0),
+                        "pases_completados": stats.get("passes", {}).get("accuracy", "0%"),
+                        "faltas_cometidas":  stats.get("fouls", {}).get("committed", 0),
+                        "faltas_recibidas":  stats.get("fouls", {}).get("drawn", 0),
+                        "tarjetas_amarillas":stats.get("cards", {}).get("yellow", 0),
+                        "tarjetas_rojas":    stats.get("cards", {}).get("red", 0),
+                        "atajadas":          stats.get("goalkeeper", {}).get("saves", 0),
+                    })
+    except Exception:
+        pass
+    return jugadores
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  IA: detectar partido del mundial
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def detectar_partido_mundial_con_ia() -> dict:
+    """
+    Usa la IA para detectar cuál es el partido relevante:
+    - Si hay un Mundial en curso → el partido más importante en juego o el último jugado
+    - Si no hay Mundial en curso → la final del último Mundial finalizado
+
+    Devuelve un dict con:
+      clave       : identificador único del partido (ej: "Qatar2022_Final")
+      descripcion : texto legible (ej: "Final Qatar 2022: Argentina 3-3 (4-2) Francia")
+      tipo        : "en_curso" | "finalizado"
+      contexto    : resumen del partido para usar en el prompt de trivia
+    """
+    if not grok_client:
+        return {
+            "clave": "Qatar2022_Final",
+            "descripcion": "Final Qatar 2022: Argentina 3-3 (4-2) Francia",
+            "tipo": "finalizado",
+            "contexto": "Final del Mundial Qatar 2022 entre Argentina y Francia. Argentina ganó por penales 4-2 tras empatar 3-3. Messi convirtió 2 goles, Mbappé hizo un hat-trick. Emiliano Martínez fue figura en los penales."
+        }
+
+    prompt = (
+        "Eres un experto en fútbol mundial. Necesito saber cuál es el partido de Copa del Mundo "
+        "más relevante ahora mismo.\n\n"
+        "REGLAS:\n"
+        "1. Si hay un Mundial FIFA en curso HOY, dame el partido más importante: la final si ya se jugó, "
+        "   o el partido más reciente o destacado si aún está en desarrollo.\n"
+        "2. Si NO hay Mundial en curso, dame la final del último Mundial FIFA finalizado.\n\n"
+        "Responde ÚNICAMENTE con este JSON (sin backticks, sin texto extra):\n"
+        "{\n"
+        '  "clave": "string corto único, ej: Qatar2022_Final o USA2026_Final",\n'
+        '  "descripcion": "Texto legible del partido, ej: Final Qatar 2022: Argentina 3-3 (4-2) Francia",\n'
+        '  "tipo": "en_curso" o "finalizado",\n'
+        '  "contexto": "Resumen detallado del partido con goles, minutos, penales, jugadores destacados, '
+        'estadísticas clave, árbitro, estadio, fecha. Todo lo que sea útil para generar trivia."\n'
+        "}"
+    )
+
+    try:
+        response = grok_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=800
+        )
+        raw = response.choices[0].message.content
+        texto = raw.replace("```json", "").replace("```", "").strip()
+        return json.loads(texto)
+    except Exception as e:
+        return {
+            "clave": "Qatar2022_Final",
+            "descripcion": "Final Qatar 2022: Argentina 3-3 (4-2) Francia",
+            "tipo": "finalizado",
+            "contexto": f"Final del Mundial Qatar 2022. Error al detectar: {str(e)}"
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  IA: generar 50 preguntas de trivia
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def generar_preguntas(partido_info: dict, jugadores: list) -> list:
+    if not grok_client:
+        return []
+
+    contexto_partido = partido_info.get("contexto", partido_info.get("descripcion", ""))
+    tipo = partido_info.get("tipo", "finalizado")
+
+    if jugadores:
+        contexto_jugadores = (
+            f"\n\nEstadísticas reales de jugadores del partido:\n{json.dumps(jugadores[:15], ensure_ascii=False)}"
+        )
+    else:
+        contexto_jugadores = ""
+
+    estado = "en curso" if tipo == "en_curso" else "ya finalizado"
+
+    prompt = (
+        f"Eres un experto en fútbol. El partido de referencia es ({estado}):\n"
+        f"{contexto_partido}"
+        f"{contexto_jugadores}\n\n"
+        "Basándote ESTRICTAMENTE en esa información, crea EXACTAMENTE 50 preguntas de trivia "
+        "variadas y desafiantes. Incluye preguntas sobre: goles y sus minutos, asistencias, "
+        "sustituciones, tarjetas, penales, jugadores destacados, estadísticas, árbitro, estadio, "
+        "contexto histórico, récords. "
+        "IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas y corresponder al partido indicado.\n\n"
+        "Formato de salida SOLO JSON sin texto adicional ni backticks:\n"
+        "{\"preguntas\": [{\"pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}]}"
+    )
+
+    response = grok_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=4096
+    )
+    raw = response.choices[0].message.content
+    texto = raw.replace("```json", "").replace("```", "").strip()
+    parsed = json.loads(texto)
+    return parsed.get("preguntas", [])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    ruta_html = os.path.join(DIR, "index.html")
+    with open(ruta_html, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
+
+
+@app.get("/api/mundial-info")
+async def mundial_info():
+    """
+    Detecta el partido del mundial relevante (en curso o último finalizado).
+    - Si ya hay uno guardado en RAG, lo devuelve sin llamar a la IA.
+    - Si no hay RAG, consulta a la IA, guarda el resultado y lo devuelve.
+    Respuesta: { clave, descripcion, tipo, desde_cache }
+    """
+    partido_rag = cargar_partido_rag()
+
+    if partido_rag:
+        return {**partido_rag, "desde_cache": True}
+
+    # Consultar IA
+    partido = detectar_partido_mundial_con_ia()
+    guardar_partido_rag(partido)
+
+    return {**partido, "desde_cache": False}
+
+
+@app.get("/api/trivias")
+async def obtener_trivias(clave: str = "", refresh: bool = False):
+    """
+    Devuelve 10 preguntas al azar del banco RAG de 50.
+
+    Flujo:
+    1. Verifica si la clave del partido cambió → si cambió, limpia el RAG completo.
+    2. Si hay preguntas en RAG y no se forzó refresh → devuelve 10 al azar.
+    3. Si no hay preguntas → genera 50 con IA, guarda en RAG, devuelve 10 al azar.
+    """
+    # 1. Cargar partido guardado en RAG
+    partido_rag = cargar_partido_rag()
+    clave_rag = partido_rag.get("clave", "")
+
+    # 2. Detectar cambio de partido → limpiar RAG
+    if clave and clave_rag and clave != clave_rag:
+        limpiar_rag()
+        partido_rag = {}
+        clave_rag = ""
+
+    # 3. Si no hay partido en RAG, detectarlo
+    if not partido_rag:
+        partido_rag = detectar_partido_mundial_con_ia()
+        guardar_partido_rag(partido_rag)
+
+    # 4. Cargar preguntas del RAG
+    banco = [] if refresh else cargar_preguntas_rag()
+
+    # 5. Si no hay preguntas, generarlas
+    if not banco:
+        if not grok_client:
+            return {"error": "GROK_API_KEY no configurada"}
+
+        try:
+            jugadores = []
+            if FOOTBALL_API_KEY:
+                # Intentar obtener fixture de la API de fútbol
+                headers = {
+                    "x-apisports-key": FOOTBALL_API_KEY,
+                    "x-rapidapi-host": "v3.football.api-sports.io"
+                }
+                res = requests.get(
+                    "https://v3.football.api-sports.io/fixtures?league=39&season=2024&status=FT&last=1",
+                    headers=headers, timeout=10
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    if data.get("response"):
+                        fixture_id = data["response"][0]["fixture"]["id"]
+                        jugadores = obtener_jugadores_fixture(fixture_id)
+
+            banco = generar_preguntas(partido_rag, jugadores)
+
+            if banco:
+                guardar_preguntas_rag(banco)
+            else:
+                return {"error": "No se pudieron generar preguntas"}
+
+        except Exception as e:
+            return {"error": str(e)}
+
+    # 6. Devolver 10 al azar
+    muestra = random.sample(banco, min(10, len(banco)))
+    return {
+        "preguntas": muestra,
+        "total_banco": len(banco),
+        "partido": partido_rag.get("descripcion", ""),
+        "tipo": partido_rag.get("tipo", "finalizado"),
+        "desde_cache": not refresh
+    }
+
+
+@app.get("/api/test")
+async def probar_apis():
+    partido = cargar_partido_rag()
+    preguntas = cargar_preguntas_rag()
+    return {
+        "partido_rag": partido,
+        "preguntas_en_cache": len(preguntas),
+        "grok_configurado": grok_client is not None,
+        "football_api_configurada": bool(FOOTBALL_API_KEY),
+    }
