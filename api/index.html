@@ -360,7 +360,7 @@ async function confirmarPartido() {
 
     } catch (err) {
         console.error('Error cargando trivia:', err);
-        preguntasPartida = muestraAleatoria(BANCO_NATIVO, 10);
+        preguntasPartida = atoria(BANCO_NATIVO, 10);
     }
 
     cambiarPantalla('scr-quiz');
@@ -384,7 +384,15 @@ async function cambiarPartido() {
 
 // ─── Helpers quiz ─────────────────────────────────────────────────────────────
 function muestraAleatoria(arr, n) {
-    return [...arr].sort(() => Math.random() - 0.5).slice(0, n);
+    const copia = [...arr]; // Evitamos modificar el arreglo original
+    
+    // Algoritmo de Fisher-Yates
+    for (let i = copia.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copia[i], copia[j]] = [copia[j], copia[i]]; // Intercambiamos elementos
+    }
+    
+    return copia.slice(0, n);
 }
 
 function renderizarPreguntaActual() {
