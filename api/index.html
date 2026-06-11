@@ -165,6 +165,152 @@
             0%,100% { opacity: 1; transform: scale(1); }
             50%      { opacity: .4; transform: scale(1.4); }
         }
+
+        /* ── Salas ── */
+        .sala-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .sala-tab {
+            flex: 1;
+            padding: 10px;
+            border-radius: 8px;
+            border: 2px solid #334155;
+            background: #1e293b;
+            color: var(--text-muted);
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        .sala-tab.active {
+            border-color: var(--primary);
+            color: #fff;
+            background: rgba(37,99,235,0.15);
+        }
+        .sala-panel { display: none; }
+        .sala-panel.active { display: block; }
+        .input-field {
+            width: 100%;
+            padding: 12px 14px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 1rem;
+            margin-top: 8px;
+            margin-bottom: 4px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .input-field:focus { border-color: var(--primary); }
+        .input-label {
+            text-align: left;
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 12px;
+        }
+        .codigo-sala-display {
+            font-size: 2.2rem;
+            font-weight: 900;
+            letter-spacing: 8px;
+            color: #fff;
+            background: #1e293b;
+            border: 2px dashed #334155;
+            border-radius: 12px;
+            padding: 18px;
+            margin: 16px 0;
+            cursor: pointer;
+            transition: border-color 0.2s;
+            user-select: all;
+        }
+        .codigo-sala-display:hover { border-color: var(--primary); }
+        .copy-hint { font-size: 0.75rem; color: var(--text-muted); margin-top: -8px; }
+        .jugadores-lista {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0;
+            text-align: left;
+        }
+        .jugadores-lista li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: #1e293b;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+        }
+        .jugadores-lista li .badge-espera {
+            font-size: 0.72rem;
+            background: rgba(245,158,11,0.15);
+            color: var(--warning);
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        .jugadores-lista li .badge-listo {
+            font-size: 0.72rem;
+            background: rgba(16,185,129,0.15);
+            color: var(--success);
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
+        /* ── Ranking sala ── */
+        .ranking-tabla {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 16px 0;
+            font-size: 0.9rem;
+        }
+        .ranking-tabla th {
+            text-align: left;
+            color: var(--text-muted);
+            font-weight: 600;
+            padding: 6px 10px;
+            border-bottom: 1px solid #334155;
+        }
+        .ranking-tabla td {
+            padding: 10px;
+            border-bottom: 1px solid #1e293b;
+        }
+        .ranking-tabla tr.yo td {
+            background: rgba(37,99,235,0.12);
+            font-weight: bold;
+            color: #60a5fa;
+        }
+        .ranking-tabla tr:first-child td .pos-medal { color: #f59e0b; }
+        .ranking-tabla tr:nth-child(2) td .pos-medal { color: #94a3b8; }
+        .ranking-tabla tr:nth-child(3) td .pos-medal { color: #b45309; }
+        .pos-medal { font-size: 1.1rem; margin-right: 4px; }
+        .sala-info-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(37,99,235,0.15);
+            border: 1px solid rgba(37,99,235,0.3);
+            color: #60a5fa;
+            border-radius: 20px;
+            padding: 4px 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            margin-bottom: 14px;
+        }
+        .esperando-jugadores {
+            background: #1e293b;
+            border-radius: 10px;
+            padding: 16px;
+            margin: 16px 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .btn-sm {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            width: auto;
+        }
     </style>
 </head>
 <body>
@@ -174,7 +320,80 @@
     <div id="scr-menu" class="screen active">
         <h1>⚽ Golazo IA</h1>
         <p>Trivia mundialista impulsada por IA y estadísticas en tiempo real.</p>
-        <button class="btn" onclick="arrancarDeteccion()">Iniciar Trivia 🚀</button>
+        <button class="btn" onclick="arrancarDeteccion()">Jugar Solo 🚀</button>
+        <button class="btn btn-secondary" onclick="irASalas()">🏟️ Jugar en Sala</button>
+    </div>
+
+    <!-- ② SALA: crear o unirse -->
+    <div id="scr-sala-lobby" class="screen">
+        <h1>🏟️ Salas</h1>
+        <p>Creá tu sala o unite con un código.</p>
+
+        <div class="sala-tabs">
+            <button class="sala-tab active" id="tab-crear"  onclick="switchTab('crear')">Crear sala</button>
+            <button class="sala-tab"        id="tab-unirse" onclick="switchTab('unirse')">Unirme a sala</button>
+        </div>
+
+        <div id="panel-crear" class="sala-panel active">
+            <label class="input-label">Tu nombre</label>
+            <input id="input-nombre-crear" class="input-field" type="text" placeholder="Ej: Messi10" maxlength="20">
+            <button class="btn" onclick="crearSala()">Crear sala 🎯</button>
+        </div>
+
+        <div id="panel-unirse" class="sala-panel">
+            <label class="input-label">Tu nombre</label>
+            <input id="input-nombre-unirse" class="input-field" type="text" placeholder="Ej: Mbappe9" maxlength="20">
+            <label class="input-label">Código de sala</label>
+            <input id="input-codigo-unirse" class="input-field" type="text" placeholder="Ej: ABC123" maxlength="8"
+                   style="text-transform:uppercase;letter-spacing:4px;font-weight:bold;">
+            <button class="btn" onclick="unirseSala()">Unirme 🙋</button>
+        </div>
+
+        <button class="btn btn-secondary" style="margin-top:10px;" onclick="volverAlMenu()">← Volver</button>
+        <div id="sala-lobby-error" style="color:var(--error);font-size:0.85rem;margin-top:10px;display:none;"></div>
+    </div>
+
+    <!-- ③ SALA: esperando jugadores -->
+    <div id="scr-sala-espera" class="screen">
+        <h1>Sala lista 🎉</h1>
+        <p>Compartí este código con tus amigos:</p>
+        <div class="codigo-sala-display" id="codigo-display" onclick="copiarCodigo()">------</div>
+        <p class="copy-hint">Tocá para copiar</p>
+
+        <div class="esperando-jugadores">
+            <strong>Jugadores en la sala:</strong>
+            <ul id="lista-jugadores-espera" class="jugadores-lista" style="margin-top:10px;"></ul>
+        </div>
+
+        <button class="btn" onclick="arrancarDesdeSala()">¡Jugar ahora! 🚀</button>
+        <div id="sala-espera-msg" style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;"></div>
+    </div>
+
+    <!-- ④ RANKING FINAL DE SALA -->
+    <div id="scr-sala-ranking" class="screen">
+        <h1>🏆 Ranking de la Sala</h1>
+        <div id="sala-ranking-badge" class="sala-info-badge">🏟️ Sala: ------</div>
+
+        <div id="sala-posicion-msg" style="font-size:1.05rem;margin-bottom:16px;"></div>
+
+        <table class="ranking-tabla">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Jugador</th>
+                    <th style="text-align:right;">Puntos</th>
+                    <th style="text-align:right;">Aciertos</th>
+                </tr>
+            </thead>
+            <tbody id="ranking-tbody"></tbody>
+        </table>
+
+        <div id="ranking-espera-msg" class="esperando-jugadores" style="display:none;">
+            <span class="live-dot"></span> Esperando que terminen los demás jugadores...
+        </div>
+
+        <button class="btn" onclick="volverAlMenu()">Volver al menú 🏠</button>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="refrescarRanking()">🔄 Actualizar ranking</button>
     </div>
 
     <!-- ② DETECTANDO PARTIDO -->
@@ -227,7 +446,10 @@
         <h1>🏆 ¡Trivia Completada!</h1>
         <p>Tu puntuación final:</p>
         <h2 id="box-final-score" style="color:var(--success);font-size:2.5rem;margin:20px 0;">0 pts</h2>
-        <button class="btn" onclick="volverAlMenu()">Volver a Jugar 🔄</button>
+        <div id="btn-ver-ranking-sala" style="display:none;">
+            <button class="btn" onclick="verRankingSala()">🏟️ Ver ranking de la sala</button>
+        </div>
+        <button class="btn btn-secondary" onclick="volverAlMenu()">Volver al menú 🔄</button>
     </div>
 
 </div>
@@ -439,9 +661,200 @@ function avanzarPregunta() {
     if (indicePreguntaActual < preguntasPartida.length) {
         renderizarPreguntaActual();
     } else {
+        const respCorrectas = puntosLocal / 10;
         document.getElementById('box-final-score').innerText = `${puntosLocal} pts`;
+
+        // Si estamos en una sala, guardar resultado y mostrar botón de ranking
+        if (salaActual.codigo) {
+            document.getElementById('btn-ver-ranking-sala').style.display = 'block';
+            guardarResultadoEnSala(puntosLocal, respCorrectas, preguntasPartida.length);
+        }
+
         cambiarPantalla('scr-results');
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SALA — estado
+// ═══════════════════════════════════════════════════════════════════════════
+let salaActual = { codigo: '', nombreJugador: '' };
+
+function irASalas() {
+    cambiarPantalla('scr-sala-lobby');
+    document.getElementById('sala-lobby-error').style.display = 'none';
+}
+
+function switchTab(tab) {
+    document.getElementById('tab-crear').classList.toggle('active',  tab === 'crear');
+    document.getElementById('tab-unirse').classList.toggle('active', tab === 'unirse');
+    document.getElementById('panel-crear').classList.toggle('active',  tab === 'crear');
+    document.getElementById('panel-unirse').classList.toggle('active', tab === 'unirse');
+}
+
+function mostrarErrorLobby(msg) {
+    const el = document.getElementById('sala-lobby-error');
+    el.innerText = msg;
+    el.style.display = 'block';
+}
+
+// ─── Crear sala ───────────────────────────────────────────────────────────
+async function crearSala() {
+    const nombre = document.getElementById('input-nombre-crear').value.trim();
+    if (!nombre) { mostrarErrorLobby('Ingresá tu nombre para continuar.'); return; }
+
+    document.getElementById('sala-lobby-error').style.display = 'none';
+
+    try {
+        const res = await fetch('/api/salas/crear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre_jugador: nombre })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error al crear sala');
+
+        salaActual.codigo        = data.codigo_sala;
+        salaActual.nombreJugador = nombre;
+
+        document.getElementById('codigo-display').innerText = data.codigo_sala;
+        renderizarJugadoresEspera(data.sala.jugadores);
+        cambiarPantalla('scr-sala-espera');
+
+    } catch (err) {
+        mostrarErrorLobby(err.message);
+    }
+}
+
+// ─── Unirse a sala ────────────────────────────────────────────────────────
+async function unirseSala() {
+    const nombre = document.getElementById('input-nombre-unirse').value.trim();
+    const codigo = document.getElementById('input-codigo-unirse').value.trim().toUpperCase();
+    if (!nombre) { mostrarErrorLobby('Ingresá tu nombre.'); return; }
+    if (!codigo) { mostrarErrorLobby('Ingresá el código de la sala.'); return; }
+
+    document.getElementById('sala-lobby-error').style.display = 'none';
+
+    try {
+        const res = await fetch('/api/salas/unirse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ codigo_sala: codigo, nombre_jugador: nombre })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error al unirse');
+
+        salaActual.codigo        = codigo;
+        salaActual.nombreJugador = nombre;
+
+        document.getElementById('codigo-display').innerText = codigo;
+        renderizarJugadoresEspera(data.sala.jugadores);
+        cambiarPantalla('scr-sala-espera');
+
+    } catch (err) {
+        mostrarErrorLobby(err.message);
+    }
+}
+
+// ─── Render lista de espera ───────────────────────────────────────────────
+function renderizarJugadoresEspera(jugadores) {
+    const ul = document.getElementById('lista-jugadores-espera');
+    ul.innerHTML = jugadores.map(j => `
+        <li>
+            <span>${j.nombre === salaActual.nombreJugador ? '⭐ ' : ''}${j.nombre}</span>
+            <span class="badge-espera">Listo</span>
+        </li>
+    `).join('');
+}
+
+// ─── Arrancar partida desde sala (reutiliza el flujo existente) ───────────
+async function arrancarDesdeSala() {
+    document.getElementById('sala-espera-msg').innerText = 'Iniciando trivia...';
+    // Reutiliza el flujo normal: detectar partido y cargar trivia
+    await arrancarDeteccion();
+}
+
+// ─── Guardar resultado en la sala ─────────────────────────────────────────
+async function guardarResultadoEnSala(puntaje, correctas, total) {
+    try {
+        await fetch('/api/salas/resultado', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                codigo_sala:          salaActual.codigo,
+                nombre_jugador:       salaActual.nombreJugador,
+                puntaje:              puntaje,
+                respuestas_correctas: correctas,
+                total_preguntas:      total
+            })
+        });
+    } catch (err) {
+        console.error('Error guardando resultado en sala:', err);
+    }
+}
+
+// ─── Ver ranking de sala ──────────────────────────────────────────────────
+async function verRankingSala() {
+    await refrescarRanking();
+    cambiarPantalla('scr-sala-ranking');
+}
+
+async function refrescarRanking() {
+    if (!salaActual.codigo) return;
+
+    try {
+        const res  = await fetch(`/api/salas/${salaActual.codigo}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error');
+
+        const { leaderboard, jugadores_totales, jugadores_terminaron } = data;
+
+        // Badge con código de sala
+        document.getElementById('sala-ranking-badge').innerHTML =
+            `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
+
+        // Mensaje de posición
+        const posMsg = document.getElementById('sala-posicion-msg');
+        const miPos  = leaderboard.findIndex(
+            j => j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase()
+        );
+        const medallas = ['🥇','🥈','🥉'];
+        if (miPos >= 0) {
+            const medallaTexto = miPos < 3 ? medallas[miPos] : `#${miPos + 1}`;
+            posMsg.innerHTML = `Estás en el puesto <strong>${medallaTexto}</strong> de la sala`;
+        } else {
+            posMsg.innerText = '';
+        }
+
+        // Tabla
+        const tbody = document.getElementById('ranking-tbody');
+        tbody.innerHTML = leaderboard.map((j, i) => {
+            const esYo  = j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase();
+            const medal = i < 3 ? `<span class="pos-medal">${medallas[i]}</span>` : `${i + 1}.`;
+            return `<tr class="${esYo ? 'yo' : ''}">
+                <td>${medal}</td>
+                <td>${j.nombre}${esYo ? ' (vos)' : ''}</td>
+                <td style="text-align:right;color:var(--success);font-weight:bold;">${j.puntaje} pts</td>
+                <td style="text-align:right;color:var(--text-muted);">${j.respuestas_correctas ?? '-'}/${j.total_preguntas ?? '-'}</td>
+            </tr>`;
+        }).join('');
+
+        // Mensaje de espera si no terminaron todos
+        const esperaMsg = document.getElementById('ranking-espera-msg');
+        esperaMsg.style.display =
+            jugadores_terminaron < jugadores_totales ? 'block' : 'none';
+
+    } catch (err) {
+        console.error('Error cargando ranking:', err);
+    }
+}
+
+function copiarCodigo() {
+    const codigo = document.getElementById('codigo-display').innerText;
+    navigator.clipboard.writeText(codigo).then(() => {
+        const el = document.querySelector('.copy-hint');
+        el.innerText = '✅ ¡Copiado!';
+        setTimeout(() => { el.innerText = 'Tocá para copiar'; }, 2000);
+    });
 }
 </script>
 </body>
