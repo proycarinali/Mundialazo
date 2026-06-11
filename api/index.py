@@ -214,7 +214,7 @@ def detectar_partido_mundial_con_ia() -> dict:
  
     try:
         response = grok_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=""Gemma 2 9B",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800
         )
