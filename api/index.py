@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import random
@@ -398,7 +399,8 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     response = grok_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=4096
+        max_tokens=7000,
+        timeout=45,
     )
     raw = response.choices[0].message.content
     texto = raw.replace("```json", "").replace("```", "").strip()
@@ -511,7 +513,8 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
             if fixture_id:
                 jugadores = obtener_jugadores_fixture(fixture_id)
 
-            banco = generar_preguntas(partido_rag, jugadores)
+            loop = asyncio.get_event_loop()
+            banco = await loop.run_in_executor(None, generar_preguntas, partido_rag, jugadores)
             if banco:
                 guardar_preguntas_rag(banco)
             else:
