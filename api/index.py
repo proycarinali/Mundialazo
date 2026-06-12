@@ -357,69 +357,6 @@ def detectar_partido_mundial_con_ia() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  IA: generar 50 preguntas de trivia
 # ═══════════════════════════════════════════════════════════════════════════════
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-
-_qg_model = None
-_qg_tokenizer = None
-
-def _cargar_modelo_qg():
-    global _qg_model, _qg_tokenizer
-    if _qg_model is None:
-        _qg_tokenizer = T5Tokenizer.from_pretrained("valhalla/t5-base-qg-hl")
-        _qg_model = T5ForConditionalGeneration.from_pretrained("valhalla/t5-base-qg-hl")
-    return _qg_model, _qg_tokenizer
-
-
-def _generar_preguntas_ia_local(partido_info: dict, jugadores: list) -> list:
-    contexto_partido = partido_info.get("contexto", partido_info.get("descripcion", ""))
-    tipo = partido_info.get("tipo", "finalizado")
-    estado = "en curso" if tipo == "en_curso" else "ya finalizado"
-
-    jugadores_compactos = []
-    if jugadores:
-        for j in jugadores[:22]:
-            nombre_j = j.get("nombre", "")
-            stats = j.get("stats", {})
-            jugadores_compactos.append(
-                f"- Jugador: {nombre_j}. Goles: {j.get('goles', 0)}. "
-                f"Tiros al arco: {stats.get('shotsOnTarget', 0)}. "
-                f"Faltas cometidas: {stats.get('foulsCommitted', 0)}. "
-                f"Atajadas: {stats.get('saves', 0)}. "
-                f"Tarjetas amarillas: {j.get('tarjetas_amarillas', 0)}. "
-                f"Tarjetas rojas: {j.get('tarjetas_rojas', 0)}."
-            )
-
-    lineas_contexto = [
-        f"Datos del partido de fútbol ({estado}).",
-        f"Detalles generales: {contexto_partido}.",
-        "Estadísticas individuales de los jugadores participantes:"
-    ]
-    lineas_contexto.extend(jugadores_compactos)
-    texto_contexto_final = "\n".join(lineas_contexto)
-
-    try:
-        model, tokenizer = _cargar_modelo_qg()
-
-        # El modelo valhalla/t5-base-qg-hl genera UNA pregunta por <hl>...<hl> resaltado.
-        # Generamos varias preguntas resaltando distintas oraciones/frases del contexto.
-        oraciones = [s.strip() for s in texto_contexto_final.split("\n") if s.strip()]
-        preguntas_generadas = []
-
-        for oracion in oraciones[:30]:  # límite para no tardar demasiado
-            texto_hl = texto_contexto_final.replace(oracion, f"<hl> {oracion} <hl>", 1)
-            input_text = f"generate question: {texto_hl}"
-
-            inputs = tokenizer.encode(input_text, return_tensors="pt", truncation=True, max_length=512)
-            outputs = model.generate(inputs, max_length=64, num_beams=4, early_stopping=True)
-            pregunta = tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-            preguntas_generadas.append({"pregunta": pregunta, "contexto": oracion})
-
-    except Exception:
-        return []
-
-    return preguntas_generadas 
-    
 def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     if not grok_client:
         return []
@@ -433,9 +370,9 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
             jugadores_compactos.append({
                 "nombre": j.get("nombre"),
                 "goles": j.get("goles"),
-                "tiros_al_arco":     stats_dict.get("shotsOnTarget", 0),
-                "faltas_cometidas":  stats_dict.get("foulsCommitted", 0),
-                "atajadas":          stats_dict.get("saves", 0),
+                "tiros_al_arco":     j.get("tiros_al_arco", 0),
+                "faltas_cometidas":  j.get("faltas_cometidas", 0),
+                "atajadas":          j.get("atajadas", 0),
                 "tarjetas_amarillas": j.get("tarjetas_amarillas"),
                 "tarjetas_rojas": j.get("tarjetas_rojas"),
             })
