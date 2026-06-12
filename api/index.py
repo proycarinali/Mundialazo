@@ -358,7 +358,7 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
  
     if jugadores:
         jugadores_compactos = []
-        for j in jugadores[:25]:
+        for j in jugadores[:15]:
             jugadores_compactos.append({
                 "nombre": j.get("nombre"),
                 "posicion": j.get("posicion"),
@@ -382,7 +382,7 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
         "y no inventes jugadores, goles ni estadísticas que no estén en este texto.\n\n"
         f"DATOS DEL PARTIDO (fuente: ESPN):\n{contexto_partido}"
         f"{contexto_jugadores}\n\n"
-        "crea EXACTAMENTE 50 preguntas "
+        "Basándote ESTRICTAMENTE en los datos de ESPN anteriores, crea EXACTAMENTE 50 preguntas "
         "de trivia variadas y desafiantes. Incluye preguntas sobre: resultado, goleadores, asistencias, "
         "tarjetas, jugadores destacados, estadísticas, árbitro, estadio, eventos del partido, "
         "contexto histórico, récords. "
@@ -734,4 +734,3 @@ async def historial_jugador(nombre: str):
         "mejor_puntaje": mejor["puntaje"],
         "historial": historial,
     }
- 
