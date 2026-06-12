@@ -4,3 +4,7 @@ openai
 requests
 pydantic
 python-multipart
+torch==2.2.1+cpu
+transformers==4.38.1
+sentencepiece==0.2.0
+protobuf==4.25.3
