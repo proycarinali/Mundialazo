@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import BaseModel
-from questiongenerator import QuestionGenerator
+
 
 site_packages_path = "/app/.venv/lib/python3.11/site-packages"
 if os.path.exists(site_packages_path) and site_packages_path not in sys.path:
