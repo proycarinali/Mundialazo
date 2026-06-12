@@ -1,3 +1,4 @@
+import sys
 import asyncio
 import json
 import os
@@ -11,10 +12,6 @@ from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import BaseModel
 
-
-site_packages_path = "/app/.venv/lib/python3.11/site-packages"
-if os.path.exists(site_packages_path) and site_packages_path not in sys.path:
-    sys.path.append(site_packages_path)
  
 app = FastAPI()
  
