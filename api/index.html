@@ -311,6 +311,36 @@
             font-size: 0.85rem;
             width: auto;
         }
+        .historial-item {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            border: 1px solid transparent;
+        }
+        .historial-item:hover {
+            background: #273548;
+            border-color: var(--primary);
+        }
+        .historial-item .historial-titulo {
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-bottom: 4px;
+        }
+        .historial-item .historial-meta {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+        .badge-ultimo {
+            font-size: 0.68rem;
+            background: rgba(16,185,129,0.15);
+            color: var(--success);
+            padding: 2px 8px;
+            border-radius: 20px;
+            margin-left: 6px;
+        }
     </style>
 </head>
 <body>
@@ -322,6 +352,18 @@
         <p>Trivia mundialista impulsada por IA y estadísticas en tiempo real.</p>
         <button class="btn" onclick="arrancarDeteccion()">Jugar Solo 🚀</button>
         <button class="btn btn-secondary" onclick="irASalas()">🏟️ Jugar en Sala</button>
+        <button class="btn btn-secondary" onclick="irAHistorial()">📜 Jugar partido anterior</button>
+    </div>
+
+    <!-- ②b HISTORIAL DE PARTIDOS -->
+    <div id="scr-historial" class="screen">
+        <h1>📜 Partidos anteriores</h1>
+        <p>Elegí con qué partido querés jugar la trivia.</p>
+        <div id="historial-lista" class="jugadores-lista" style="margin-top:16px;"></div>
+        <div id="historial-vacio" style="display:none;color:var(--text-muted);font-size:0.9rem;margin:16px 0;">
+            No hay partidos guardados todavía.
+        </div>
+        <button class="btn btn-secondary" onclick="volverAlMenu()">← Volver</button>
     </div>
 
     <!-- ② SALA: crear o unirse -->
@@ -394,6 +436,29 @@
 
         <button class="btn" onclick="volverAlMenu()">Volver al menú 🏠</button>
         <button class="btn btn-secondary" style="margin-top:8px;" onclick="refrescarRanking()">🔄 Actualizar ranking</button>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="verRankingTotal()">🏆 RANKING TOTAL del Mundial</button>
+    </div>
+
+    <!-- ④b RANKING TOTAL DE SALA (acumulado de todas las trivias) -->
+    <div id="scr-sala-ranking-total" class="screen">
+        <h1>🏆 Ranking Total</h1>
+        <div id="sala-ranking-total-badge" class="sala-info-badge">🏟️ Sala: ------</div>
+        <p style="font-size:0.85rem;">Suma de puntos de todas las trivias jugadas en esta sala durante el Mundial.</p>
+
+        <table class="ranking-tabla">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Jugador</th>
+                    <th style="text-align:right;">Puntos totales</th>
+                    <th style="text-align:right;">Partidas</th>
+                </tr>
+            </thead>
+            <tbody id="ranking-total-tbody"></tbody>
+        </table>
+
+        <button class="btn" onclick="volverAlMenu()">Volver al menú 🏠</button>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="cambiarPantalla('scr-sala-ranking')">← Volver al ranking de esta trivia</button>
     </div>
 
     <!-- ② DETECTANDO PARTIDO -->
@@ -572,6 +637,16 @@ async function confirmarPartido() {
         preguntasPartida = (data.preguntas && data.preguntas.length > 0)
             ? data.preguntas
             : muestraAleatoria(BANCO_NATIVO, 10);
+
+        // Actualizar clave/descripcion reales del partido (importante para
+        // partidos del historial donde partidoActual venia incompleto)
+        if (data.clave) {
+            partidoActual = partidoActual || {};
+            partidoActual.clave = data.clave;
+        }
+        if (data.partido) {
+            partidoActual.descripcion = data.partido;
+        }
 
         // Actualizar label del partido en el quiz
         const label = document.getElementById('partido-label-quiz');
@@ -784,7 +859,8 @@ async function guardarResultadoEnSala(puntaje, correctas, total) {
                 nombre_jugador:       salaActual.nombreJugador,
                 puntaje:              puntaje,
                 respuestas_correctas: correctas,
-                total_preguntas:      total
+                total_preguntas:      total,
+                clave_partido:        (partidoActual && partidoActual.clave) ? partidoActual.clave : ''
             })
         });
     } catch (err) {
@@ -792,7 +868,56 @@ async function guardarResultadoEnSala(puntaje, correctas, total) {
     }
 }
 
-// ─── Ver ranking de sala ──────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+//  HISTORIAL DE PARTIDOS — jugar con un partido anterior
+// ═══════════════════════════════════════════════════════════════════════════
+async function irAHistorial() {
+    cambiarPantalla('scr-historial');
+    const cont = document.getElementById('historial-lista');
+    const vacio = document.getElementById('historial-vacio');
+    cont.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Cargando...</p>';
+    vacio.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/partidos-historial');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error al cargar historial');
+
+        const partidos = data.partidos || [];
+        if (partidos.length === 0) {
+            cont.innerHTML = '';
+            vacio.style.display = 'block';
+            return;
+        }
+
+        cont.innerHTML = partidos.map(p => {
+            const badge = p.tipo === 'en_curso'
+                ? '<span class="badge badge-en-curso" style="margin-left:6px;"><span class="live-dot"></span>EN CURSO</span>'
+                : '<span class="badge badge-finalizado" style="margin-left:6px;">FINALIZADO</span>';
+            const ultimoBadge = p.ultimo ? '<span class="badge-ultimo">ÚLTIMO</span>' : '';
+            return `
+                <li class="historial-item" onclick="seleccionarPartidoHistorial('${p.clave.replace(/'/g, "\\'")}')">
+                    <div class="historial-titulo">${p.descripcion || p.clave} ${ultimoBadge}</div>
+                    <div class="historial-meta">${badge}</div>
+                </li>
+            `;
+        }).join('');
+
+    } catch (err) {
+        cont.innerHTML = '';
+        vacio.innerText = 'Error cargando partidos: ' + err.message;
+        vacio.style.display = 'block';
+    }
+}
+
+function seleccionarPartidoHistorial(clave) {
+    // Buscamos los datos completos consultando mundial-info solo si es el
+    // ultimo; para partidos viejos armamos un objeto minimo con la clave
+    // y dejamos que /api/trivias devuelva la descripcion real.
+    partidoActual = { clave: clave, desde_cache: true, tipo: 'finalizado', descripcion: '', contexto: '' };
+    confirmarPartido();
+}
+
 async function verRankingSala() {
     await refrescarRanking();
     cambiarPantalla('scr-sala-ranking');
@@ -845,6 +970,45 @@ async function refrescarRanking() {
 
     } catch (err) {
         console.error('Error cargando ranking:', err);
+    }
+}
+
+async function verRankingTotal() {
+    if (!salaActual.codigo) return;
+    cambiarPantalla('scr-sala-ranking-total');
+
+    document.getElementById('sala-ranking-total-badge').innerHTML =
+        `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
+
+    const tbody = document.getElementById('ranking-total-tbody');
+    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);">Cargando...</td></tr>';
+
+    try {
+        const res = await fetch(`/api/salas/${salaActual.codigo}/ranking-total`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error');
+
+        const ranking = data.ranking_total || [];
+        const medallas = ['🥇','🥈','🥉'];
+
+        if (ranking.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);">Todavía no hay resultados.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = ranking.map((j, i) => {
+            const esYo = j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase();
+            const medal = i < 3 ? `<span class="pos-medal">${medallas[i]}</span>` : `${i + 1}.`;
+            return `<tr class="${esYo ? 'yo' : ''}">
+                <td>${medal}</td>
+                <td>${j.nombre}${esYo ? ' (vos)' : ''}</td>
+                <td style="text-align:right;color:var(--success);font-weight:bold;">${j.puntaje_total} pts</td>
+                <td style="text-align:right;color:var(--text-muted);">${j.partidas_jugadas}</td>
+            </tr>`;
+        }).join('');
+
+    } catch (err) {
+        tbody.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error: ${err.message}</td></tr>`;
     }
 }
 
