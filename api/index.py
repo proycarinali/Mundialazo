@@ -155,7 +155,7 @@ def obtener_jugadores_fixture(fixture_id) -> list:
         res = requests.get(
             ESPN_SUMMARY_URL,
             params={"event": fixture_id},
-            timeout=10
+            timeout=6
         )
         if res.status_code != 200:
             return jugadores
@@ -215,7 +215,7 @@ def obtener_ultimo_partido_mundial2026() -> dict:
     partido FINALIZADO del Mundial 2026. Devuelve {} si no hay datos o falla.
     """
     try:
-        res = requests.get(ESPN_SCOREBOARD_URL, timeout=10)
+        res = requests.get(ESPN_SCOREBOARD_URL, timeout=6)
         if res.status_code != 200:
             return {}
 
@@ -430,25 +430,10 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
 
 def generar_preguntas(partido_info: dict, jugadores: list) -> list:
     """
-    Wrapper: ANTES de generar preguntas, verifica en ESPN si ya finalizo
-    un partido mas nuevo que 'partido_info'. Si lo hay, actualiza el RAG
-    de partido, obtiene los jugadores de ese partido nuevo, y genera las
-    preguntas para ESE partido en lugar del original.
+    Genera las preguntas para el partido indicado. La verificacion de si
+    hay un partido mas nuevo se hace en /api/mundial-info y al inicio de
+    /api/trivias, por lo que aqui no se vuelve a golpear ESPN.
     """
-    ultimo_partido = obtener_ultimo_partido_mundial2026()
-
-    if ultimo_partido and ultimo_partido.get("clave") != partido_info.get("clave"):
-        # Hay un partido mas reciente finalizado -> usar ese
-        partido_info = ultimo_partido
-        guardar_partido_rag(partido_info)
-
-        fixture_id = partido_info.get("fixture_id")
-        jugadores = obtener_jugadores_fixture(fixture_id) if fixture_id else []
-
-        # Invalidar banco de preguntas viejo, ya que corresponde a otro partido
-        if os.path.exists(CACHE_FILE):
-            os.remove(CACHE_FILE)
-
     return _generar_preguntas_ia(partido_info, jugadores)
  
  
@@ -497,31 +482,23 @@ async def mundial_info():
  
 @app.get("/api/trivias")
 async def obtener_trivias(clave: str = "", refresh: bool = False):
+    """
+    Lee el partido actual del RAG (ya actualizado por /api/mundial-info,
+    que es quien chequea ESPN) y devuelve preguntas. Si la clave pedida
+    no coincide con la del RAG, o no hay banco cacheado, regenera.
+    """
     partido_rag = cargar_partido_rag()
     clave_rag = partido_rag.get("clave", "")
 
-    # 1) Obtener el ultimo partido jugado del Mundial 2026 via api-football
-    ultimo_partido = obtener_ultimo_partido_mundial2026()
-
-    # 2) Si la API no devolvio nada, usar lo que haya en cache (o detectar con IA)
-    if not ultimo_partido:
-        ultimo_partido = partido_rag if partido_rag else detectar_partido_mundial_con_ia()
-
-    # 3) Si pidieron una clave especifica distinta a la del cache, limpiar
-    if clave and clave_rag and clave != clave_rag:
-        limpiar_rag()
-        partido_rag = {}
-        clave_rag = ""
-
-    # 4) Hay un partido nuevo (distinta clave) respecto al guardado en RAG?
-    hay_partido_nuevo = bool(
-        ultimo_partido.get("clave") and ultimo_partido.get("clave") != clave_rag
-    )
-
-    if hay_partido_nuevo or not partido_rag:
-        partido_rag = ultimo_partido
+    if not partido_rag:
+        partido_rag = detectar_partido_mundial_con_ia()
         guardar_partido_rag(partido_rag)
-        refresh = True  # forzar regeneracion del banco de preguntas
+        clave_rag = partido_rag.get("clave", "")
+        refresh = True
+
+    # Si pidieron una clave distinta a la del RAG actual, forzar regeneracion
+    if clave and clave != clave_rag:
+        refresh = True
 
     banco = [] if refresh else cargar_preguntas_rag()
 
@@ -537,7 +514,6 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
             banco = generar_preguntas(partido_rag, jugadores)
             if banco:
                 guardar_preguntas_rag(banco)
-                partido_rag = cargar_partido_rag()  # por si generar_preguntas detecto partido mas nuevo
             else:
                 return {"error": "No se pudieron generar preguntas"}
         except Exception as e:
@@ -550,7 +526,6 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
         "partido": partido_rag.get("descripcion", ""),
         "tipo": partido_rag.get("tipo", "finalizado"),
         "desde_cache": not refresh,
-        "partido_nuevo_detectado": hay_partido_nuevo,
     }
  
  
