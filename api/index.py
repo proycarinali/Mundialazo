@@ -145,38 +145,54 @@ def generar_codigo_sala(longitud: int = 6) -> str:
 #  FOOTBALL API
 # ═══════════════════════════════════════════════════════════════════════════════
  
-def obtener_jugadores_fixture(fixture_id: int) -> list:
-    headers = {
-        "x-apisports-key": FOOTBALL_API_KEY or "",
-        "x-rapidapi-host": "v3.football.api-sports.io"
-    }
+def obtener_jugadores_fixture(fixture_id) -> list:
+    """
+    Obtiene estadisticas de jugadores del partido desde el endpoint
+    'summary' de ESPN, mapeando a las mismas claves que antes.
+    """
     jugadores = []
     try:
         res = requests.get(
-            f"https://v3.football.api-sports.io/fixtures/players?fixture={fixture_id}",
-            headers=headers, timeout=10
+            ESPN_SUMMARY_URL,
+            params={"event": fixture_id},
+            timeout=10
         )
-        if res.status_code == 200:
-            data = res.json()
-            for team in data.get("response", []):
-                for player in team.get("players", []):
-                    stats = player.get("statistics", [{}])[0]
-                    jugadores.append({
-                        "nombre":            player["player"]["name"],
-                        "posicion":          stats.get("games", {}).get("position", "N/A"),
-                        "minutos":           stats.get("games", {}).get("minutes", 0),
-                        "calificacion":      stats.get("games", {}).get("rating", "N/A"),
-                        "goles":             stats.get("goals", {}).get("total", 0),
-                        "asistencias":       stats.get("goals", {}).get("assists", 0),
-                        "tiros_total":       stats.get("shots", {}).get("total", 0),
-                        "tiros_al_arco":     stats.get("shots", {}).get("on", 0),
-                        "pases_completados": stats.get("passes", {}).get("accuracy", "0%"),
-                        "faltas_cometidas":  stats.get("fouls", {}).get("committed", 0),
-                        "faltas_recibidas":  stats.get("fouls", {}).get("drawn", 0),
-                        "tarjetas_amarillas":stats.get("cards", {}).get("yellow", 0),
-                        "tarjetas_rojas":    stats.get("cards", {}).get("red", 0),
-                        "atajadas":          stats.get("goalkeeper", {}).get("saves", 0),
-                    })
+        if res.status_code != 200:
+            return jugadores
+
+        data = res.json()
+        rosters = data.get("rosters", [])
+
+        # Mapa de claves de stats de ESPN -> nombres de stat (varia por deporte/version)
+        for team in rosters:
+            for player in team.get("roster", []):
+                atleta = player.get("athlete", {})
+                nombre = atleta.get("displayName", "")
+                posicion = atleta.get("position", {}).get("abbreviation", "N/A")
+
+                stats_dict = {}
+                for stat_grupo in player.get("stats", []):
+                    nombre_stat = stat_grupo.get("name") or stat_grupo.get("abbreviation")
+                    valor_stat = stat_grupo.get("value", stat_grupo.get("displayValue"))
+                    if nombre_stat is not None:
+                        stats_dict[nombre_stat] = valor_stat
+
+                jugadores.append({
+                    "nombre":            nombre,
+                    "posicion":          posicion,
+                    "minutos":           stats_dict.get("minutes", stats_dict.get("appearances", 0)),
+                    "calificacion":      stats_dict.get("rating", "N/A"),
+                    "goles":             stats_dict.get("goals", 0),
+                    "asistencias":       stats_dict.get("goalAssists", stats_dict.get("assists", 0)),
+                    "tiros_total":       stats_dict.get("totalShots", 0),
+                    "tiros_al_arco":     stats_dict.get("shotsOnTarget", 0),
+                    "pases_completados": stats_dict.get("accuratePasses", "0"),
+                    "faltas_cometidas":  stats_dict.get("foulsCommitted", 0),
+                    "faltas_recibidas":  stats_dict.get("foulsSuffered", stats_dict.get("foulsDrawn", 0)),
+                    "tarjetas_amarillas":stats_dict.get("yellowCards", 0),
+                    "tarjetas_rojas":    stats_dict.get("redCards", 0),
+                    "atajadas":          stats_dict.get("saves", 0),
+                })
     except Exception:
         pass
     return jugadores
@@ -185,67 +201,96 @@ def obtener_jugadores_fixture(fixture_id: int) -> list:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  FOOTBALL API: último partido jugado del Mundial 2026
 # ═══════════════════════════════════════════════════════════════════════════════
- 
-MUNDIAL_2026_LEAGUE_ID = 1   # ID de "World Cup" en api-football
+
+MUNDIAL_2026_LEAGUE_ID = 1   # (legado, ya no se usa con ESPN)
 MUNDIAL_2026_SEASON    = 2026
- 
- 
+
+ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/scoreboard"
+ESPN_SUMMARY_URL    = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary"
+
+
 def obtener_ultimo_partido_mundial2026() -> dict:
     """
-    Consulta api-football y devuelve info del último fixture finalizado
-    del Mundial 2026. Devuelve {} si no hay datos o falla.
+    Consulta el scoreboard publico de ESPN y devuelve info del ultimo
+    partido FINALIZADO del Mundial 2026. Devuelve {} si no hay datos o falla.
     """
-    if not FOOTBALL_API_KEY:
-        return {}
- 
-    headers = {
-        "x-apisports-key": FOOTBALL_API_KEY,
-        "x-rapidapi-host": "v3.football.api-sports.io"
-    }
- 
     try:
-        res = requests.get(
-            "https://v3.football.api-sports.io/fixtures",
-            headers=headers,
-            params={
-                "league": MUNDIAL_2026_LEAGUE_ID,
-                "season": MUNDIAL_2026_SEASON,
-                "status": "FT",
-                "last": 1,
-            },
-            timeout=10
-        )
+        res = requests.get(ESPN_SCOREBOARD_URL, timeout=10)
         if res.status_code != 200:
             return {}
- 
+
         data = res.json()
-        if not data.get("response"):
+        eventos = data.get("events", [])
+        if not eventos:
             return {}
- 
-        fixture = data["response"][0]
- 
-        # Validar que el fixture realmente pertenezca al Mundial 2026
-        liga_id = fixture.get("league", {}).get("id")
-        liga_nombre = (fixture.get("league", {}).get("name") or "").lower()
-        if liga_id != MUNDIAL_2026_LEAGUE_ID and "world cup" not in liga_nombre:
+
+        # Filtrar solo partidos finalizados (status STATUS_FULL_TIME / completed)
+        finalizados = []
+        for ev in eventos:
+            status = ev.get("status", {}).get("type", {})
+            if status.get("completed") is True or status.get("state") == "post":
+                finalizados.append(ev)
+
+        if not finalizados:
             return {}
-        fixture_id = fixture["fixture"]["id"]
-        home = fixture["teams"]["home"]["name"]
-        away = fixture["teams"]["away"]["name"]
-        goles_home = fixture["goals"]["home"]
-        goles_away = fixture["goals"]["away"]
-        fecha = fixture["fixture"]["date"]
-        estadio = fixture["fixture"]["venue"].get("name", "")
-        arbitro = fixture["fixture"].get("referee", "")
-        ronda = fixture["league"].get("round", "")
- 
-        descripcion = f"{ronda}: {home} {goles_home}-{goles_away} {away}"
- 
+
+        # Tomar el mas reciente por fecha
+        finalizados.sort(key=lambda e: e.get("date", ""), reverse=True)
+        evento = finalizados[0]
+
+        fixture_id = evento.get("id")
+        fecha = evento.get("date", "")
+
+        competition = (evento.get("competitions") or [{}])[0]
+        competidores = competition.get("competitors", [])
+
+        home_data = next((c for c in competidores if c.get("homeAway") == "home"), {})
+        away_data = next((c for c in competidores if c.get("homeAway") == "away"), {})
+
+        home = home_data.get("team", {}).get("displayName", "")
+        away = away_data.get("team", {}).get("displayName", "")
+        goles_home = home_data.get("score", "")
+        goles_away = away_data.get("score", "")
+
+        venue = competition.get("venue", {})
+        estadio = venue.get("fullName", "")
+        ciudad = venue.get("address", {}).get("city", "")
+
+        arbitros = competition.get("officials", [])
+        arbitro = arbitros[0].get("displayName", "") if arbitros else ""
+
+        ronda = ""
+        notas = evento.get("season", {})
+        if competition.get("notes"):
+            ronda = competition["notes"][0].get("headline", "")
+        elif evento.get("name"):
+            ronda = evento.get("name", "")
+
+        descripcion = f"{ronda}: {home} {goles_home}-{goles_away} {away}".strip(": ")
+
+        # Eventos del partido (goles, tarjetas, etc.) si ESPN los provee
+        eventos_texto = []
+        for det in competition.get("details", []):
+            tipo_evento = det.get("type", {}).get("text", "")
+            minuto = det.get("clock", {}).get("displayValue", "")
+            atleta = det.get("athletesInvolved", [{}])
+            jugador = atleta[0].get("displayName", "") if atleta else ""
+            equipo_id = det.get("team", {}).get("id")
+            equipo_nombre = home if equipo_id == home_data.get("team", {}).get("id") else away
+            if tipo_evento:
+                eventos_texto.append(
+                    f"{tipo_evento} - {jugador} ({equipo_nombre}) min {minuto}".strip()
+                )
+
+        eventos_str = " | ".join(eventos_texto) if eventos_texto else ""
+
         contexto = (
-            f"{descripcion}. Fecha: {fecha}. Estadio: {estadio}. "
+            f"{descripcion}. Fecha: {fecha}. Estadio: {estadio}"
+            f"{', ' + ciudad if ciudad else ''}. "
             f"Árbitro: {arbitro}. Ronda: {ronda}."
+            f"{(' Eventos del partido: ' + eventos_str + '.') if eventos_str else ''}"
         )
- 
+
         return {
             "fixture_id": fixture_id,
             "clave": f"Mundial2026_{fixture_id}",
@@ -255,8 +300,8 @@ def obtener_ultimo_partido_mundial2026() -> dict:
         }
     except Exception:
         return {}
- 
- 
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  IA: detectar partido del mundial
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -323,14 +368,20 @@ def generar_preguntas(partido_info: dict, jugadores: list) -> list:
     estado = "en curso" if tipo == "en_curso" else "ya finalizado"
  
     prompt = (
-        f"Eres un experto en fútbol. El partido de referencia es ({estado}):\n"
-        f"{contexto_partido}"
+        "A continuación tenés datos OFICIALES extraídos en tiempo real desde la API de ESPN "
+        f"sobre un partido ({estado}) del Mundial 2026. Estos son los ÚNICOS datos válidos: "
+        "no uses tu conocimiento previo sobre otros partidos, no asumas otro resultado, "
+        "y no inventes jugadores, goles ni estadísticas que no estén en este texto.\n\n"
+        f"DATOS DEL PARTIDO (fuente: ESPN):\n{contexto_partido}"
         f"{contexto_jugadores}\n\n"
-        "Basándote ESTRICTAMENTE en esa información, crea EXACTAMENTE 50 preguntas de trivia "
-        "variadas y desafiantes. Incluye preguntas sobre: goles y sus minutos, asistencias, "
+        "Basándote ESTRICTAMENTE en los datos de ESPN anteriores, crea EXACTAMENTE 50 preguntas "
+        "de trivia variadas y desafiantes. Incluye preguntas sobre: goles y sus minutos, asistencias, "
         "sustituciones, tarjetas, penales, jugadores destacados, estadísticas, árbitro, estadio, "
         "contexto histórico, récords. "
-        "IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas y corresponder al partido indicado.\n\n"
+        "Si un dato (ej: minuto de un gol, árbitro, estadísticas de un jugador) no aparece en los "
+        "datos de ESPN, NO generes una pregunta sobre ese dato.\n"
+        "IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas según los datos de ESPN "
+        "proporcionados y corresponder al partido indicado arriba.\n\n"
         "Formato de salida SOLO JSON sin texto adicional ni backticks:\n"
         "{\"preguntas\": [{\"pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}]}"
     )
@@ -371,41 +422,41 @@ async def mundial_info():
 async def obtener_trivias(clave: str = "", refresh: bool = False):
     partido_rag = cargar_partido_rag()
     clave_rag = partido_rag.get("clave", "")
- 
+
     # 1) Obtener el ultimo partido jugado del Mundial 2026 via api-football
     ultimo_partido = obtener_ultimo_partido_mundial2026()
- 
+
     # 2) Si la API no devolvio nada, usar lo que haya en cache (o detectar con IA)
     if not ultimo_partido:
         ultimo_partido = partido_rag if partido_rag else detectar_partido_mundial_con_ia()
- 
+
     # 3) Si pidieron una clave especifica distinta a la del cache, limpiar
     if clave and clave_rag and clave != clave_rag:
         limpiar_rag()
         partido_rag = {}
         clave_rag = ""
- 
+
     # 4) Hay un partido nuevo (distinta clave) respecto al guardado en RAG?
     hay_partido_nuevo = bool(
         ultimo_partido.get("clave") and ultimo_partido.get("clave") != clave_rag
     )
- 
+
     if hay_partido_nuevo or not partido_rag:
         partido_rag = ultimo_partido
         guardar_partido_rag(partido_rag)
         refresh = True  # forzar regeneracion del banco de preguntas
- 
+
     banco = [] if refresh else cargar_preguntas_rag()
- 
+
     if not banco:
         if not grok_client:
             return {"error": "GROK_API_KEY no configurada"}
         try:
             jugadores = []
             fixture_id = partido_rag.get("fixture_id")
-            if FOOTBALL_API_KEY and fixture_id:
+            if fixture_id:
                 jugadores = obtener_jugadores_fixture(fixture_id)
- 
+
             banco = generar_preguntas(partido_rag, jugadores)
             if banco:
                 guardar_preguntas_rag(banco)
@@ -413,7 +464,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
                 return {"error": "No se pudieron generar preguntas"}
         except Exception as e:
             return {"error": str(e)}
- 
+
     muestra = random.sample(banco, min(10, len(banco)))
     return {
         "preguntas": muestra,
