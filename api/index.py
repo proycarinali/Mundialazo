@@ -32,6 +32,7 @@ CACHE_FILE    = os.path.join(DIR, "preguntas_cache.json")
 PARTIDO_FILE  = os.path.join(DIR, "partido_cache.json")
 SALAS_FILE    = os.path.join(DIR, "salas_cache.json")       # ← NUEVO
 PARTIDAS_FILE = os.path.join(DIR, "partidas_cache.json")    # ← NUEVO
+HISTORIAL_FILE = os.path.join(DIR, "partidos_historial.json")  # ← NUEVO: historial de partidos jugables
  
 # ─── Cliente Groq ─────────────────────────────────────────────────────────────
 grok_client = None
@@ -59,6 +60,7 @@ class GuardarResultadoRequest(BaseModel):
     puntaje: int
     respuestas_correctas: int
     total_preguntas: int
+    clave_partido: str = ""
  
  
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -101,6 +103,108 @@ def limpiar_rag():
     for f in [CACHE_FILE, PARTIDO_FILE]:
         if os.path.exists(f):
             os.remove(f)
+ 
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  HELPERS RAG — historial de partidos jugables  ← NUEVO
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def cargar_historial() -> list:
+    """
+    Devuelve la lista de partidos guardados, cada uno con su propio banco
+    de preguntas. Estructura de cada item:
+    {
+        "clave": "...", "descripcion": "...", "tipo": "...",
+        "contexto": "...", "fixture_id": ..., "preguntas": [...],
+        "ultimo": bool, "guardado_en": iso-datetime
+    }
+    """
+    if os.path.exists(HISTORIAL_FILE):
+        try:
+            with open(HISTORIAL_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
+        except Exception:
+            pass
+    return []
+
+
+def guardar_historial(historial: list):
+    with open(HISTORIAL_FILE, "w", encoding="utf-8") as f:
+        json.dump(historial, f, ensure_ascii=False, indent=2)
+
+
+def obtener_partido_historial(clave: str) -> dict:
+    """Busca un partido por clave dentro del historial."""
+    for p in cargar_historial():
+        if p.get("clave") == clave:
+            return p
+    return {}
+
+
+def obtener_ultimo_del_historial() -> dict:
+    """Devuelve el partido marcado como 'ultimo' en el historial (o {} si no hay)."""
+    for p in cargar_historial():
+        if p.get("ultimo"):
+            return p
+    return {}
+
+
+def upsert_partido_historial(partido_info: dict, preguntas: list = None) -> dict:
+    """
+    Inserta o actualiza un partido en el historial. Marca este partido
+    como 'ultimo' y desmarca a todos los demás. Si ya existía un item
+    con la misma clave, conserva sus preguntas salvo que se pasen nuevas.
+    Devuelve el item guardado.
+    """
+    historial = cargar_historial()
+    clave = partido_info.get("clave", "")
+
+    existente = None
+    for p in historial:
+        if p.get("clave") == clave:
+            existente = p
+        p["ultimo"] = False  # desmarcar todos
+
+    if existente:
+        existente.update({
+            "descripcion": partido_info.get("descripcion", existente.get("descripcion", "")),
+            "tipo":        partido_info.get("tipo", existente.get("tipo", "finalizado")),
+            "contexto":    partido_info.get("contexto", existente.get("contexto", "")),
+            "fixture_id":  partido_info.get("fixture_id", existente.get("fixture_id")),
+            "ultimo":      True,
+        })
+        if preguntas:
+            existente["preguntas"] = preguntas
+        item = existente
+    else:
+        item = {
+            "clave":       clave,
+            "descripcion": partido_info.get("descripcion", ""),
+            "tipo":        partido_info.get("tipo", "finalizado"),
+            "contexto":    partido_info.get("contexto", ""),
+            "fixture_id":  partido_info.get("fixture_id"),
+            "preguntas":   preguntas or [],
+            "ultimo":      True,
+            "guardado_en": datetime.utcnow().isoformat(),
+        }
+        historial.append(item)
+
+    guardar_historial(historial)
+    return item
+
+
+def guardar_preguntas_partido_historial(clave: str, preguntas: list):
+    """Guarda/actualiza el banco de preguntas de un partido específico del historial."""
+    historial = cargar_historial()
+    for p in historial:
+        if p.get("clave") == clave:
+            p["preguntas"] = preguntas
+            guardar_historial(historial)
+            return True
+    return False
+
  
  
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -461,70 +565,114 @@ async def root():
 @app.get("/api/mundial-info")
 async def mundial_info():
     """
-    Devuelve info del partido actual. SIEMPRE verifica primero contra ESPN
-    si hay un partido finalizado mas reciente; si lo hay, actualiza el RAG
-    de partido y borra el banco de preguntas viejo (para que /api/trivias
-    regenere las preguntas para el partido nuevo).
-    Si no hay partido nuevo, simplemente devuelve lo guardado en cache.
+    Devuelve info del partido actual (el "ultimo" del historial).
+    SIEMPRE verifica primero contra ESPN si hay un partido finalizado mas
+    reciente, comparando contra el ultimo partido guardado en el HISTORIAL
+    (no contra el cache simple). Si hay uno nuevo, lo agrega al historial,
+    lo marca como 'ultimo' (desmarcando al anterior) y mantiene el banco
+    de preguntas viejo guardado dentro de su propio item del historial
+    para poder jugarlo despues.
     """
-    partido_rag = cargar_partido_rag()
-    clave_rag = partido_rag.get("clave", "")
+    ultimo_guardado = obtener_ultimo_del_historial()
+    clave_actual = ultimo_guardado.get("clave", "")
 
-    ultimo_partido = obtener_ultimo_partido_mundial2026()
+    ultimo_partido_espn = obtener_ultimo_partido_mundial2026()
 
     hay_partido_nuevo = bool(
-        ultimo_partido and ultimo_partido.get("clave") and ultimo_partido.get("clave") != clave_rag
+        ultimo_partido_espn and ultimo_partido_espn.get("clave")
+        and ultimo_partido_espn.get("clave") != clave_actual
     )
 
-    if hay_partido_nuevo or not partido_rag:
-        partido_rag = ultimo_partido if ultimo_partido else (
-            partido_rag if partido_rag else detectar_partido_mundial_con_ia()
+    if hay_partido_nuevo or not ultimo_guardado:
+        nuevo_partido = ultimo_partido_espn if ultimo_partido_espn else (
+            ultimo_guardado if ultimo_guardado else detectar_partido_mundial_con_ia()
         )
-        guardar_partido_rag(partido_rag)
 
+        item = upsert_partido_historial(nuevo_partido)
+
+        # Mantener compatibilidad con el cache "simple" anterior
+        guardar_partido_rag(nuevo_partido)
         if hay_partido_nuevo and os.path.exists(CACHE_FILE):
             os.remove(CACHE_FILE)
 
-        return {**partido_rag, "desde_cache": False, "partido_nuevo_detectado": hay_partido_nuevo}
+        return {**item, "desde_cache": False, "partido_nuevo_detectado": hay_partido_nuevo}
 
-    return {**partido_rag, "desde_cache": True, "partido_nuevo_detectado": False}
- 
- 
+    return {**ultimo_guardado, "desde_cache": True, "partido_nuevo_detectado": False}
+
+
+@app.get("/api/partidos-historial")
+async def partidos_historial():
+    """
+    Devuelve la lista de partidos guardados (para elegir con cuál jugar).
+    Cada item incluye clave, descripcion, tipo, si tiene preguntas
+    generadas, y si es el 'ultimo' (el más reciente detectado).
+    """
+    historial = cargar_historial()
+
+    # Ordenar: el ultimo primero, despues por fecha de guardado descendente
+    historial_ordenado = sorted(
+        historial,
+        key=lambda p: (not p.get("ultimo", False), p.get("guardado_en", "")),
+    )
+    # El sort de arriba pone "ultimo" primero (False < True invertido) pero
+    # el resto en orden ascendente de fecha; lo invertimos para el resto:
+    ultimos = [p for p in historial_ordenado if p.get("ultimo")]
+    resto = [p for p in historial_ordenado if not p.get("ultimo")]
+    resto.sort(key=lambda p: p.get("guardado_en", ""), reverse=True)
+
+    partidos = []
+    for p in ultimos + resto:
+        partidos.append({
+            "clave": p.get("clave", ""),
+            "descripcion": p.get("descripcion", ""),
+            "tipo": p.get("tipo", "finalizado"),
+            "ultimo": bool(p.get("ultimo", False)),
+            "tiene_preguntas": len(p.get("preguntas", [])) > 0,
+            "guardado_en": p.get("guardado_en", ""),
+        })
+
+    return {"partidos": partidos, "total": len(partidos)}
+
+
 @app.get("/api/trivias")
 async def obtener_trivias(clave: str = "", refresh: bool = False):
     """
-    Lee el partido actual del RAG (ya actualizado por /api/mundial-info,
-    que es quien chequea ESPN) y devuelve preguntas. Si la clave pedida
-    no coincide con la del RAG, o no hay banco cacheado, regenera.
+    Devuelve preguntas para jugar.
+    - Si se pasa `clave`, busca ese partido en el HISTORIAL y usa/genera
+      su propio banco de preguntas (permite jugar partidos anteriores).
+    - Si no se pasa `clave`, usa el partido marcado como 'ultimo'.
+    - `refresh=true` fuerza regenerar el banco de ese partido puntual.
     """
-    partido_rag = cargar_partido_rag()
-    clave_rag = partido_rag.get("clave", "")
+    if clave and clave != "__reset__":
+        partido_item = obtener_partido_historial(clave)
+        if not partido_item:
+            return {"error": f"Partido con clave '{clave}' no encontrado en el historial"}
+    else:
+        partido_item = obtener_ultimo_del_historial()
+        if not partido_item:
+            nuevo = detectar_partido_mundial_con_ia()
+            partido_item = upsert_partido_historial(nuevo)
+            guardar_partido_rag(nuevo)
+            refresh = True
 
-    if not partido_rag:
-        partido_rag = detectar_partido_mundial_con_ia()
-        guardar_partido_rag(partido_rag)
-        clave_rag = partido_rag.get("clave", "")
-        refresh = True
-
-    # Si pidieron una clave distinta a la del RAG actual, forzar regeneracion
-    if clave and clave != clave_rag:
-        refresh = True
-
-    banco = [] if refresh else cargar_preguntas_rag()
+    banco = [] if refresh else partido_item.get("preguntas", [])
 
     if not banco:
         if not grok_client:
             return {"error": "GROK_API_KEY no configurada"}
         try:
             jugadores = []
-            fixture_id = partido_rag.get("fixture_id")
+            fixture_id = partido_item.get("fixture_id")
             if fixture_id:
                 jugadores = obtener_jugadores_fixture(fixture_id)
 
             loop = asyncio.get_event_loop()
-            banco = await loop.run_in_executor(None, generar_preguntas, partido_rag, jugadores)
+            banco = await loop.run_in_executor(None, generar_preguntas, partido_item, jugadores)
             if banco:
-                guardar_preguntas_rag(banco)
+                guardar_preguntas_partido_historial(partido_item.get("clave", ""), banco)
+                # Mantener compatibilidad con cache simple si es el ultimo
+                if partido_item.get("ultimo"):
+                    guardar_preguntas_rag(banco)
             else:
                 return {"error": "No se pudieron generar preguntas"}
         except Exception as e:
@@ -534,8 +682,9 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
     return {
         "preguntas": muestra,
         "total_banco": len(banco),
-        "partido": partido_rag.get("descripcion", ""),
-        "tipo": partido_rag.get("tipo", "finalizado"),
+        "clave": partido_item.get("clave", ""),
+        "partido": partido_item.get("descripcion", ""),
+        "tipo": partido_item.get("tipo", "finalizado"),
         "desde_cache": not refresh,
     }
  
@@ -609,9 +758,6 @@ async def unirse_sala(body: UnirseRequest):
  
     sala = salas[codigo]
  
-    if sala["estado"] == "finalizada":
-        raise HTTPException(status_code=400, detail="La sala ya finalizó.")
- 
     # Verificar que el nombre no esté tomado en esa sala
     nombres_existentes = [j["nombre"].lower() for j in sala["jugadores"]]
     if body.nombre_jugador.lower() in nombres_existentes:
@@ -635,10 +781,14 @@ async def unirse_sala(body: UnirseRequest):
 @app.post("/api/salas/resultado")
 async def guardar_resultado(body: GuardarResultadoRequest):
     """
-    Guarda el resultado de un jugador al terminar su partida.
-    - Actualiza la sala con el puntaje del jugador.
-    - Persiste la partida en el RAG global de partidas.
-    - Si todos los jugadores terminaron, marca la sala como 'finalizada'.
+    Guarda el resultado de un jugador al terminar UNA trivia dentro de la sala.
+    - Actualiza el "último resultado" del jugador en la sala (para el
+      ranking de esa trivia puntual).
+    - Persiste la partida en el RAG global de partidas (con el código de
+      sala y la clave del partido jugado), para poder calcular el
+      RANKING TOTAL de la sala sumando todas las participaciones.
+    - La sala NO se cierra: permanece abierta para que se puedan jugar
+      más trivias durante todo el Mundial.
     """
     salas = cargar_salas()
     codigo = body.codigo_sala.upper().strip()
@@ -648,7 +798,7 @@ async def guardar_resultado(body: GuardarResultadoRequest):
  
     sala = salas[codigo]
  
-    # Actualizar puntaje del jugador en la sala
+    # Actualizar puntaje del jugador en la sala (último resultado jugado)
     jugador_encontrado = False
     for jugador in sala["jugadores"]:
         if jugador["nombre"].lower() == body.nombre_jugador.lower():
@@ -657,21 +807,29 @@ async def guardar_resultado(body: GuardarResultadoRequest):
             jugador["total_preguntas"] = body.total_preguntas
             jugador["finalizo"] = True
             jugador["finalizado_en"] = datetime.utcnow().isoformat()
+            jugador["clave_partido"] = body.clave_partido
             jugador_encontrado = True
             break
  
     if not jugador_encontrado:
-        raise HTTPException(status_code=404, detail=f"Jugador '{body.nombre_jugador}' no está en la sala.")
+        # Si no estaba en la sala (se unió a una sala existente y juega
+        # directo), lo agregamos como jugador con su resultado.
+        sala["jugadores"].append({
+            "nombre": body.nombre_jugador,
+            "unido_en": datetime.utcnow().isoformat(),
+            "puntaje": body.puntaje,
+            "respuestas_correctas": body.respuestas_correctas,
+            "total_preguntas": body.total_preguntas,
+            "finalizo": True,
+            "finalizado_en": datetime.utcnow().isoformat(),
+            "clave_partido": body.clave_partido,
+        })
  
-    # Si todos finalizaron → cerrar sala
-    todos_terminaron = all(j["finalizo"] for j in sala["jugadores"])
-    if todos_terminaron:
-        sala["estado"] = "finalizada"
-        sala["finalizada_en"] = datetime.utcnow().isoformat()
+    todos_terminaron = all(j.get("finalizo") for j in sala["jugadores"])
  
     guardar_salas(salas)
  
-    # ── Persistir en RAG global de partidas ──────────────────────────────────
+    # ── Persistir en RAG global de partidas (historial de participaciones) ──
     partidas = cargar_partidas()
     partidas.append({
         "nombre_jugador":      body.nombre_jugador,
@@ -679,6 +837,7 @@ async def guardar_resultado(body: GuardarResultadoRequest):
         "respuestas_correctas": body.respuestas_correctas,
         "total_preguntas":     body.total_preguntas,
         "codigo_sala":         codigo,
+        "clave_partido":       body.clave_partido,
         "partido":             sala.get("partido", ""),
         "fecha":               datetime.utcnow().isoformat(),
     })
@@ -720,6 +879,48 @@ async def obtener_sala(codigo: str):
     }
  
  
+@app.get("/api/salas/{codigo}/ranking-total")
+async def ranking_total_sala(codigo: str):
+    """
+    Ranking acumulado de TODA la sala: suma los puntajes de todas las
+    participaciones (de todas las trivias/partidos jugados) de cada
+    jugador en esta sala, durante todo el Mundial.
+    """
+    salas = cargar_salas()
+    codigo = codigo.upper().strip()
+
+    if codigo not in salas:
+        raise HTTPException(status_code=404, detail=f"Sala '{codigo}' no encontrada.")
+
+    partidas = cargar_partidas()
+    participaciones_sala = [p for p in partidas if p.get("codigo_sala", "").upper() == codigo]
+
+    acumulado: dict[str, dict] = {}
+    for p in participaciones_sala:
+        nombre = p["nombre_jugador"]
+        if nombre not in acumulado:
+            acumulado[nombre] = {
+                "nombre": nombre,
+                "puntaje_total": 0,
+                "respuestas_correctas_total": 0,
+                "total_preguntas_total": 0,
+                "partidas_jugadas": 0,
+            }
+        acumulado[nombre]["puntaje_total"] += p.get("puntaje", 0)
+        acumulado[nombre]["respuestas_correctas_total"] += p.get("respuestas_correctas", 0)
+        acumulado[nombre]["total_preguntas_total"] += p.get("total_preguntas", 0)
+        acumulado[nombre]["partidas_jugadas"] += 1
+
+    ranking = sorted(acumulado.values(), key=lambda x: x["puntaje_total"], reverse=True)
+
+    return {
+        "codigo_sala": codigo,
+        "ranking_total": ranking,
+        "total_participaciones": len(participaciones_sala),
+        "jugadores_unicos": len(acumulado),
+    }
+
+
 @app.get("/api/leaderboard")
 async def leaderboard_global(limite: int = 20):
     """
