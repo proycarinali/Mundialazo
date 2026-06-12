@@ -507,7 +507,7 @@ def generar_preguntas(partido_info: dict, jugadores: list) -> list:
     hay un partido mas nuevo se hace en /api/mundial-info y al inicio de
     /api/trivias, por lo que aqui no se vuelve a golpear ESPN.
     """
-    return _generar_preguntas_ia_local(partido_info, jugadores)
+    return _generar_preguntas_ia(partido_info, jugadores)
  
  
 # ═══════════════════════════════════════════════════════════════════════════════
