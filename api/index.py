@@ -365,6 +365,11 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
                 "posicion": j.get("posicion"),
                 "goles": j.get("goles"),
                 "asistencias": j.get("asistencias"),
+                "tiros_total":       stats_dict.get("totalShots", 0),
+                "tiros_al_arco":     stats_dict.get("shotsOnTarget", 0),
+                "faltas_cometidas":  stats_dict.get("foulsCommitted", 0),
+                "faltas_recibidas":  stats_dict.get("foulsSuffered", stats_dict.get("foulsDrawn", 0)),
+                "atajadas":          stats_dict.get("saves", 0),
                 "tarjetas_amarillas": j.get("tarjetas_amarillas"),
                 "tarjetas_rojas": j.get("tarjetas_rojas"),
             })
