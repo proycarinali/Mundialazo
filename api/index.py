@@ -196,12 +196,9 @@ def detectar_partido_mundial_con_ia() -> dict:
         }
  
     prompt = (
-        "Eres un experto en fútbol mundial. Necesito saber cuál es el partido de Copa del Mundo "
-        "más relevante ahora mismo.\n\n"
+        "Eres un experto en fútbol mundial. Necesito saber cuál fue el último partido del mundo 2026 que se jugo "
+        "hoy mismo.\n\n"
         "REGLAS:\n"
-        "1. Si hay un Mundial FIFA en curso HOY, dame el partido más importante: la final si ya se jugó, "
-        "   o el partido más reciente o destacado si aún está en desarrollo.\n"
-        "2. Si NO hay Mundial en curso, dame la final del último Mundial FIFA finalizado.\n\n"
         "Responde ÚNICAMENTE con este JSON (sin backticks, sin texto extra):\n"
         "{\n"
         '  "clave": "string corto único, ej: Qatar2022_Final o USA2026_Final",\n'
