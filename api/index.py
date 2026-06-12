@@ -376,13 +376,13 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     estado = "en curso" if tipo == "en_curso" else "ya finalizado"
  
     prompt = (
-        "A continuación tenés datos OFICIALES extraídos en tiempo real desde la API de ESPN "
-        f"sobre un partido ({estado}) del Mundial 2026. Estos son los ÚNICOS datos válidos: "
+        "A continuación tenés datos OFICIALES extraídos del último partido del mundual de futbol."
+        f"Estos son los ÚNICOS datos válidos: "
         "no uses tu conocimiento previo sobre otros partidos, no asumas otro resultado, "
         "y no inventes jugadores, goles ni estadísticas que no estén en este texto.\n\n"
         f"DATOS DEL PARTIDO (fuente: ESPN):\n{contexto_partido}"
         f"{contexto_jugadores}\n\n"
-        "Basándote ESTRICTAMENTE en los datos de ESPN anteriores, crea EXACTAMENTE 50 preguntas "
+        "crea EXACTAMENTE 50 preguntas "
         "de trivia variadas y desafiantes. Incluye preguntas sobre: resultado, goleadores, asistencias, "
         "tarjetas, jugadores destacados, estadísticas, árbitro, estadio, eventos del partido, "
         "contexto histórico, récords. "
