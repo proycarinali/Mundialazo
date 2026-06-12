@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import BaseModel
-from question_generator.questiongenerator import QuestionGenerator
+from questiongenerator import QuestionGenerator
  
 app = FastAPI()
  
