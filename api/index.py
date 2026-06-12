@@ -210,13 +210,17 @@ ESPN_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa
 ESPN_SUMMARY_URL    = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary"
 
 
+import requests
+from datetime import datetime
+
 def obtener_ultimo_partido_mundial2026() -> dict:
-    """
-    Consulta el scoreboard publico de ESPN y devuelve info del ultimo
-    partido FINALIZADO del Mundial 2026. Devuelve {} si no hay datos o falla.
-    """
     try:
-        res = requests.get(ESPN_SCOREBOARD_URL, timeout=6)
+        # 1. Definir rango de fechas dinámico para no perder partidos de ayer
+        fecha_inicio = "20260611"
+        fecha_hoy = datetime.now().strftime("%Y%m%d")
+        url = f"{ESPN_SCOREBOARD_URL}?dates={fecha_inicio}-{fecha_hoy}&limit=100"
+
+        res = requests.get(url, timeout=6)
         if res.status_code != 200:
             return {}
 
@@ -225,18 +229,24 @@ def obtener_ultimo_partido_mundial2026() -> dict:
         if not eventos:
             return {}
 
-        # Filtrar solo partidos finalizados (status STATUS_FULL_TIME / completed)
         finalizados = []
         for ev in eventos:
             status = ev.get("status", {}).get("type", {})
-            if status.get("completed") is True or status.get("state") == "post":
+            # Agregamos validación por nombre de estado por seguridad
+            if status.get("completed") is True or status.get("state") == "post" or status.get("name") == "STATUS_FINAL":
                 finalizados.append(ev)
 
         if not finalizados:
             return {}
 
-        # Tomar el mas reciente por fecha
-        finalizados.sort(key=lambda e: e.get("date", ""), reverse=True)
+        # 2. Ordenar usando datetime real para evitar fallas de ordenamiento de strings
+        def mapear_fecha(e):
+            try:
+                return datetime.fromisoformat(e.get("date", "").replace("Z", "+00:00"))
+            except ValueError:
+                return datetime.min
+
+        finalizados.sort(key=mapear_fecha, reverse=True)
         evento = finalizados[0]
 
         fixture_id = evento.get("id")
@@ -265,14 +275,11 @@ def obtener_ultimo_partido_mundial2026() -> dict:
             ronda = competition["notes"][0].get("headline", "")
         elif evento.get("name"):
             ronda = evento.get("name", "")
-        # Recortar notas/ronda si son demasiado largas
         if len(ronda) > 80:
             ronda = ronda[:80].rsplit(" ", 1)[0] + "..."
 
         descripcion = f"{ronda}: {home} {goles_home}-{goles_away} {away}".strip(": ")
 
-        # Eventos del partido (goles, tarjetas, etc.) si ESPN los provee.
-        # Se omiten minuto y jugador para no saturar el prompt de la IA.
         eventos_texto = []
         for det in competition.get("details", [])[:15]:
             tipo_evento = det.get("type", {}).get("text", "")
@@ -299,7 +306,6 @@ def obtener_ultimo_partido_mundial2026() -> dict:
         }
     except Exception:
         return {}
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  IA: detectar partido del mundial
