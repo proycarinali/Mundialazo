@@ -330,7 +330,7 @@ def detectar_partido_mundial_con_ia() -> dict:
  
     try:
         response = grok_client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model = "llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
             max_tokens=800
         )
@@ -397,7 +397,7 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     )
  
     response = grok_client.chat.completions.create(
-        model="llama-3.1-8b-instant",
+        model = "llama-3.3-70b-versatile",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=7000,
         timeout=45,
