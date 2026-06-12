@@ -358,7 +358,7 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
  
     if jugadores:
         jugadores_compactos = []
-        for j in jugadores[:15]:
+        for j in jugadores[:25]:
             jugadores_compactos.append({
                 "nombre": j.get("nombre"),
                 "posicion": j.get("posicion"),
@@ -376,8 +376,8 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     estado = "en curso" if tipo == "en_curso" else "ya finalizado"
  
     prompt = (
-        "A continuación tenés datos OFICIALES extraídos del último partido del mundual de futbol."
-        f"Estos son los ÚNICOS datos válidos: "
+        "A continuación tenés datos OFICIALES extraídos en tiempo real desde la API de ESPN "
+        f"sobre un partido ({estado}) del Mundial 2026. Estos son los ÚNICOS datos válidos: "
         "no uses tu conocimiento previo sobre otros partidos, no asumas otro resultado, "
         "y no inventes jugadores, goles ni estadísticas que no estén en este texto.\n\n"
         f"DATOS DEL PARTIDO (fuente: ESPN):\n{contexto_partido}"
