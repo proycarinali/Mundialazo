@@ -360,33 +360,29 @@ def detectar_partido_mundial_con_ia() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  IA: generar 50 preguntas de trivia
 # ═══════════════════════════════════════════════════════════════════════════════
-import json
-import random
-from question_generator.questiongenerator import QuestionGenerator
+from transformers import T5ForConditionalGeneration, T5Tokenizer
 
-# Inicializas el generador de preguntas local (descarga el modelo la primera vez)
-# Usamos el modelo 't5-base' que viene por defecto en la librería
-qg = QuestionGenerator()
+_qg_model = None
+_qg_tokenizer = None
+
+def _cargar_modelo_qg():
+    global _qg_model, _qg_tokenizer
+    if _qg_model is None:
+        _qg_tokenizer = T5Tokenizer.from_pretrained("valhalla/t5-base-qg-hl")
+        _qg_model = T5ForConditionalGeneration.from_pretrained("valhalla/t5-base-qg-hl")
+    return _qg_model, _qg_tokenizer
+
 
 def _generar_preguntas_ia_local(partido_info: dict, jugadores: list) -> list:
     contexto_partido = partido_info.get("contexto", partido_info.get("descripcion", ""))
     tipo = partido_info.get("tipo", "finalizado")
     estado = "en curso" if tipo == "en_curso" else "ya finalizado"
-    
-    # 1. Compactar y limpiar los datos de los jugadores
+
     jugadores_compactos = []
-    lista_nombres_jugadores = []
-    
     if jugadores:
         for j in jugadores[:22]:
             nombre_j = j.get("nombre", "")
-            if nombre_j:
-                lista_nombres_jugadores.append(nombre_j)
-            
-            # Nota: Asegúrate de que 'stats_dict' esté definido globalmente 
-            # o cámbialo por j.get("stats", {}) según tu estructura previa.
-            stats = j.get("stats", {}) 
-            
+            stats = j.get("stats", {})
             jugadores_compactos.append(
                 f"- Jugador: {nombre_j}. Goles: {j.get('goles', 0)}. "
                 f"Tiros al arco: {stats.get('shotsOnTarget', 0)}. "
@@ -396,64 +392,37 @@ def _generar_preguntas_ia_local(partido_info: dict, jugadores: list) -> list:
                 f"Tarjetas rojas: {j.get('tarjetas_rojas', 0)}."
             )
 
-    # 2. Construir un bloque de texto narrativo y limpio (sin JSON crudo)
-    # Los modelos locales procesan mucho mejor el lenguaje natural directo.
     lineas_contexto = [
         f"Datos del partido de fútbol ({estado}).",
         f"Detalles generales: {contexto_partido}.",
         "Estadísticas individuales de los jugadores participantes:"
     ]
     lineas_contexto.extend(jugadores_compactos)
-    
     texto_contexto_final = "\n".join(lineas_contexto)
 
-    # 3. Generar preguntas usando la librería local
-    # 'num_questions' es un estimado alto para forzar al modelo a extraer todo lo posible
     try:
-        preguntas_generadas = qg.generate_questions(
-            texto_contexto_final, 
-            num_questions=60
-        )
+        model, tokenizer = _cargar_modelo_qg()
+
+        # El modelo valhalla/t5-base-qg-hl genera UNA pregunta por <hl>...<hl> resaltado.
+        # Generamos varias preguntas resaltando distintas oraciones/frases del contexto.
+        oraciones = [s.strip() for s in texto_contexto_final.split("\n") if s.strip()]
+        preguntas_generadas = []
+
+        for oracion in oraciones[:30]:  # límite para no tardar demasiado
+            texto_hl = texto_contexto_final.replace(oracion, f"<hl> {oracion} <hl>", 1)
+            input_text = f"generate question: {texto_hl}"
+
+            inputs = tokenizer.encode(input_text, return_tensors="pt", truncation=True, max_length=512)
+            outputs = model.generate(inputs, max_length=64, num_beams=4, early_stopping=True)
+            pregunta = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+            preguntas_generadas.append({"pregunta": pregunta, "contexto": oracion})
+
     except Exception:
         return []
 
-    # 4. Formatear los resultados al estándar JSON de tu aplicación original
-    preguntas_formateadas = []
+    return preguntas_generadas 
     
-    for item in preguntas_generadas:
-        pregunta_texto = item.get("question", "").replace('"', "'")
-        respuesta_correcta = item.get("answer", "").replace('"', "'")
-        
-        if not pregunta_texto or not respuesta_correcta:
-            continue
-            
-        # Generar distractores (opciones incorrectas) dinámicos
-        # Si la respuesta es el nombre de un jugador, usamos otros jugadores como opciones
-        opciones = [respuesta_correcta]
-        
-        if respuesta_correcta in lista_nombres_jugadores:
-            otros_jugadores = [n for n in lista_nombres_jugadores if n != respuesta_correcta]
-            distractores = random.sample(otros_jugadores, min(2, len(otros_jugadores)))
-            opciones.extend(distractores)
-        else:
-            # Distractores genéricos si la respuesta es un número o texto corto
-            opciones.extend([f"Dato alternativo A", f"Dato alternativo B"])
-        
-        # Mezclar las opciones para que la correcta no sea siempre la primera
-        random.shuffle(opciones)
-        
-        preguntas_formateadas.append({
-            "pregunta": pregunta_texto,
-            "opciones": opciones,
-            "correcta": respuesta_correcta
-        })
-        
-        # Limitar estrictamente al número de preguntas requeridas
-        if len(preguntas_formateadas) >= 50:
-            break
-
-    return preguntas_formateadas
- 
 def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     if not grok_client:
         return []
