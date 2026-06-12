@@ -465,12 +465,34 @@ async def root():
  
 @app.get("/api/mundial-info")
 async def mundial_info():
+    """
+    Devuelve info del partido actual. SIEMPRE verifica primero contra ESPN
+    si hay un partido finalizado mas reciente; si lo hay, actualiza el RAG
+    de partido y borra el banco de preguntas viejo (para que /api/trivias
+    regenere las preguntas para el partido nuevo).
+    Si no hay partido nuevo, simplemente devuelve lo guardado en cache.
+    """
     partido_rag = cargar_partido_rag()
-    if partido_rag:
-        return {**partido_rag, "desde_cache": True}
-    partido = detectar_partido_mundial_con_ia()
-    guardar_partido_rag(partido)
-    return {**partido, "desde_cache": False}
+    clave_rag = partido_rag.get("clave", "")
+
+    ultimo_partido = obtener_ultimo_partido_mundial2026()
+
+    hay_partido_nuevo = bool(
+        ultimo_partido and ultimo_partido.get("clave") and ultimo_partido.get("clave") != clave_rag
+    )
+
+    if hay_partido_nuevo or not partido_rag:
+        partido_rag = ultimo_partido if ultimo_partido else (
+            partido_rag if partido_rag else detectar_partido_mundial_con_ia()
+        )
+        guardar_partido_rag(partido_rag)
+
+        if hay_partido_nuevo and os.path.exists(CACHE_FILE):
+            os.remove(CACHE_FILE)
+
+        return {**partido_rag, "desde_cache": False, "partido_nuevo_detectado": hay_partido_nuevo}
+
+    return {**partido_rag, "desde_cache": True, "partido_nuevo_detectado": False}
  
  
 @app.get("/api/trivias")
