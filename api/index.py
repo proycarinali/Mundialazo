@@ -185,11 +185,11 @@ def obtener_jugadores_fixture(fixture_id: int) -> list:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  FOOTBALL API: último partido jugado del Mundial 2026
 # ═══════════════════════════════════════════════════════════════════════════════
-
+ 
 MUNDIAL_2026_LEAGUE_ID = 1   # ID de "World Cup" en api-football
 MUNDIAL_2026_SEASON    = 2026
-
-
+ 
+ 
 def obtener_ultimo_partido_mundial2026() -> dict:
     """
     Consulta api-football y devuelve info del último fixture finalizado
@@ -197,12 +197,12 @@ def obtener_ultimo_partido_mundial2026() -> dict:
     """
     if not FOOTBALL_API_KEY:
         return {}
-
+ 
     headers = {
         "x-apisports-key": FOOTBALL_API_KEY,
         "x-rapidapi-host": "v3.football.api-sports.io"
     }
-
+ 
     try:
         res = requests.get(
             "https://v3.football.api-sports.io/fixtures",
@@ -217,12 +217,18 @@ def obtener_ultimo_partido_mundial2026() -> dict:
         )
         if res.status_code != 200:
             return {}
-
+ 
         data = res.json()
         if not data.get("response"):
             return {}
-
+ 
         fixture = data["response"][0]
+ 
+        # Validar que el fixture realmente pertenezca al Mundial 2026
+        liga_id = fixture.get("league", {}).get("id")
+        liga_nombre = (fixture.get("league", {}).get("name") or "").lower()
+        if liga_id != MUNDIAL_2026_LEAGUE_ID and "world cup" not in liga_nombre:
+            return {}
         fixture_id = fixture["fixture"]["id"]
         home = fixture["teams"]["home"]["name"]
         away = fixture["teams"]["away"]["name"]
@@ -232,14 +238,14 @@ def obtener_ultimo_partido_mundial2026() -> dict:
         estadio = fixture["fixture"]["venue"].get("name", "")
         arbitro = fixture["fixture"].get("referee", "")
         ronda = fixture["league"].get("round", "")
-
+ 
         descripcion = f"{ronda}: {home} {goles_home}-{goles_away} {away}"
-
+ 
         contexto = (
             f"{descripcion}. Fecha: {fecha}. Estadio: {estadio}. "
             f"Árbitro: {arbitro}. Ronda: {ronda}."
         )
-
+ 
         return {
             "fixture_id": fixture_id,
             "clave": f"Mundial2026_{fixture_id}",
@@ -249,8 +255,8 @@ def obtener_ultimo_partido_mundial2026() -> dict:
         }
     except Exception:
         return {}
-
-
+ 
+ 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  IA: detectar partido del mundial
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -365,32 +371,32 @@ async def mundial_info():
 async def obtener_trivias(clave: str = "", refresh: bool = False):
     partido_rag = cargar_partido_rag()
     clave_rag = partido_rag.get("clave", "")
-
+ 
     # 1) Obtener el ultimo partido jugado del Mundial 2026 via api-football
     ultimo_partido = obtener_ultimo_partido_mundial2026()
-
+ 
     # 2) Si la API no devolvio nada, usar lo que haya en cache (o detectar con IA)
     if not ultimo_partido:
         ultimo_partido = partido_rag if partido_rag else detectar_partido_mundial_con_ia()
-
+ 
     # 3) Si pidieron una clave especifica distinta a la del cache, limpiar
     if clave and clave_rag and clave != clave_rag:
         limpiar_rag()
         partido_rag = {}
         clave_rag = ""
-
+ 
     # 4) Hay un partido nuevo (distinta clave) respecto al guardado en RAG?
     hay_partido_nuevo = bool(
         ultimo_partido.get("clave") and ultimo_partido.get("clave") != clave_rag
     )
-
+ 
     if hay_partido_nuevo or not partido_rag:
         partido_rag = ultimo_partido
         guardar_partido_rag(partido_rag)
         refresh = True  # forzar regeneracion del banco de preguntas
-
+ 
     banco = [] if refresh else cargar_preguntas_rag()
-
+ 
     if not banco:
         if not grok_client:
             return {"error": "GROK_API_KEY no configurada"}
@@ -399,7 +405,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
             fixture_id = partido_rag.get("fixture_id")
             if FOOTBALL_API_KEY and fixture_id:
                 jugadores = obtener_jugadores_fixture(fixture_id)
-
+ 
             banco = generar_preguntas(partido_rag, jugadores)
             if banco:
                 guardar_preguntas_rag(banco)
@@ -407,7 +413,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
                 return {"error": "No se pudieron generar preguntas"}
         except Exception as e:
             return {"error": str(e)}
-
+ 
     muestra = random.sample(banco, min(10, len(banco)))
     return {
         "preguntas": muestra,
