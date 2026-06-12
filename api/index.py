@@ -386,7 +386,7 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
         "Basándote ESTRICTAMENTE en los datos de ESPN anteriores, crea EXACTAMENTE 50 preguntas "
         "de trivia variadas y desafiantes. Incluye preguntas sobre: resultado, goleadores, asistencias, "
         "tarjetas, jugadores destacados, estadísticas, árbitro, estadio, eventos del partido, "
-        "contexto histórico, récords. "
+        "contexto histórico, récords. En ninguna pregunta nombres que los datos los sacas de ESPN."
         "Si un dato no aparece en los datos de ESPN, NO generes una pregunta sobre ese dato.\n"
         "IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas según los datos de ESPN "
         "proporcionados y corresponder al partido indicado arriba.\n"
