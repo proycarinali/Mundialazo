@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
 from pydantic import BaseModel
+from question_generator.questiongenerator import QuestionGenerator
  
 app = FastAPI()
  
@@ -355,6 +356,99 @@ def detectar_partido_mundial_con_ia() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  IA: generar 50 preguntas de trivia
 # ═══════════════════════════════════════════════════════════════════════════════
+import json
+import random
+from question_generator.questiongenerator import QuestionGenerator
+
+# Inicializas el generador de preguntas local (descarga el modelo la primera vez)
+# Usamos el modelo 't5-base' que viene por defecto en la librería
+qg = QuestionGenerator()
+
+def _generar_preguntas_ia_local(partido_info: dict, jugadores: list) -> list:
+    contexto_partido = partido_info.get("contexto", partido_info.get("descripcion", ""))
+    tipo = partido_info.get("tipo", "finalizado")
+    estado = "en curso" if tipo == "en_curso" else "ya finalizado"
+    
+    # 1. Compactar y limpiar los datos de los jugadores
+    jugadores_compactos = []
+    lista_nombres_jugadores = []
+    
+    if jugadores:
+        for j in jugadores[:22]:
+            nombre_j = j.get("nombre", "")
+            if nombre_j:
+                lista_nombres_jugadores.append(nombre_j)
+            
+            # Nota: Asegúrate de que 'stats_dict' esté definido globalmente 
+            # o cámbialo por j.get("stats", {}) según tu estructura previa.
+            stats = j.get("stats", {}) 
+            
+            jugadores_compactos.append(
+                f"- Jugador: {nombre_j}. Goles: {j.get('goles', 0)}. "
+                f"Tiros al arco: {stats.get('shotsOnTarget', 0)}. "
+                f"Faltas cometidas: {stats.get('foulsCommitted', 0)}. "
+                f"Atajadas: {stats.get('saves', 0)}. "
+                f"Tarjetas amarillas: {j.get('tarjetas_amarillas', 0)}. "
+                f"Tarjetas rojas: {j.get('tarjetas_rojas', 0)}."
+            )
+
+    # 2. Construir un bloque de texto narrativo y limpio (sin JSON crudo)
+    # Los modelos locales procesan mucho mejor el lenguaje natural directo.
+    lineas_contexto = [
+        f"Datos del partido de fútbol ({estado}).",
+        f"Detalles generales: {contexto_partido}.",
+        "Estadísticas individuales de los jugadores participantes:"
+    ]
+    lineas_contexto.extend(jugadores_compactos)
+    
+    texto_contexto_final = "\n".join(lineas_contexto)
+
+    # 3. Generar preguntas usando la librería local
+    # 'num_questions' es un estimado alto para forzar al modelo a extraer todo lo posible
+    try:
+        preguntas_generadas = qg.generate_questions(
+            texto_contexto_final, 
+            num_questions=60
+        )
+    except Exception:
+        return []
+
+    # 4. Formatear los resultados al estándar JSON de tu aplicación original
+    preguntas_formateadas = []
+    
+    for item in preguntas_generadas:
+        pregunta_texto = item.get("question", "").replace('"', "'")
+        respuesta_correcta = item.get("answer", "").replace('"', "'")
+        
+        if not pregunta_texto or not respuesta_correcta:
+            continue
+            
+        # Generar distractores (opciones incorrectas) dinámicos
+        # Si la respuesta es el nombre de un jugador, usamos otros jugadores como opciones
+        opciones = [respuesta_correcta]
+        
+        if respuesta_correcta in lista_nombres_jugadores:
+            otros_jugadores = [n for n in lista_nombres_jugadores if n != respuesta_correcta]
+            distractores = random.sample(otros_jugadores, min(2, len(otros_jugadores)))
+            opciones.extend(distractores)
+        else:
+            # Distractores genéricos si la respuesta es un número o texto corto
+            opciones.extend([f"Dato alternativo A", f"Dato alternativo B"])
+        
+        # Mezclar las opciones para que la correcta no sea siempre la primera
+        random.shuffle(opciones)
+        
+        preguntas_formateadas.append({
+            "pregunta": pregunta_texto,
+            "opciones": opciones,
+            "correcta": respuesta_correcta
+        })
+        
+        # Limitar estrictamente al número de preguntas requeridas
+        if len(preguntas_formateadas) >= 50:
+            break
+
+    return preguntas_formateadas
  
 def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     if not grok_client:
@@ -443,7 +537,7 @@ def generar_preguntas(partido_info: dict, jugadores: list) -> list:
     hay un partido mas nuevo se hace en /api/mundial-info y al inicio de
     /api/trivias, por lo que aqui no se vuelve a golpear ESPN.
     """
-    return _generar_preguntas_ia(partido_info, jugadores)
+    return _generar_preguntas_ia_local(partido_info, jugadores)
  
  
 # ═══════════════════════════════════════════════════════════════════════════════
