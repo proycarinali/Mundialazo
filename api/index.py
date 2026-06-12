@@ -359,7 +359,7 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
  
     if jugadores:
         jugadores_compactos = []
-        for j in jugadores[:]:
+        for j in jugadores[:20]:
             jugadores_compactos.append({
                 "nombre": j.get("nombre"),
                 "posicion": j.get("posicion"),
