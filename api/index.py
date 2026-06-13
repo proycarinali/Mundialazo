@@ -323,7 +323,7 @@ def obtener_ultimo_partido_mundial2026() -> dict:
     try:
         # 1. Definir rango de fechas dinámico para no perder partidos de ayer
         fecha_inicio = "20260611"
-        fecha_hoy = datetime.now().strftime("%Y%m%d")
+        fecha_hoy = (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
         url = f"{ESPN_SCOREBOARD_URL}?dates={fecha_inicio}-{fecha_hoy}&limit=100"
 
         res = requests.get(url, timeout=6)
