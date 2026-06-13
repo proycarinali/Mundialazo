@@ -318,33 +318,124 @@ ESPN_SUMMARY_URL    = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa
 
 import requests
 from datetime import datetime
+def obtener_ultimo_partido_mundial2026() -> dict:
+    try:
+        # 1. Definir rango de fechas dinámico
+        fecha_inicio = "20260611"
+        fecha_hoy = (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
+        url = f"{ESPN_SCOREBOARD_URL}?dates={fecha_inicio}-{fecha_hoy}&limit=100"
 
-finalizados = []
-en_vivo = []
+        res = requests.get(url, timeout=6)
+        if res.status_code != 200:
+            return {}
 
-for ev in eventos:
-    status = ev.get("status", {}).get("type", {})
+        data = res.json()
+        eventos = data.get("events", [])
+        if not eventos:
+            return {}
 
-    if status.get("state") == "in":
-        en_vivo.append(ev)
+        finalizados = []
+        en_vivo = []
 
-    if (
-        status.get("completed") is True
-        or status.get("state") == "post"
-        or status.get("name") == "STATUS_FINAL"
-    ):
-        finalizados.append(ev)
+        for ev in eventos:
+            status = ev.get("status", {}).get("type", {})
 
-# Prioridad: partido en vivo
-if en_vivo:
-    return en_vivo[-1]
+            # Partido en juego
+            if status.get("state") == "in":
+                en_vivo.append(ev)
 
-# Si no hay en vivo, último finalizado
-if finalizados:
-    return finalizados[-1]
+            # Partido finalizado
+            if (
+                status.get("completed") is True
+                or status.get("state") == "post"
+                or status.get("name") == "STATUS_FINAL"
+            ):
+                finalizados.append(ev)
 
-return {}
-        # 2. Ordenar usando datetime real para evitar fallas de ordenamiento de strings
+        def mapear_fecha(e):
+            try:
+                return datetime.fromisoformat(
+                    e.get("date", "").replace("Z", "+00:00")
+                )
+            except ValueError:
+                return datetime.min
+
+        # Prioridad: partido en vivo
+        if en_vivo:
+            en_vivo.sort(key=mapear_fecha, reverse=True)
+            evento = en_vivo[0]
+
+        # Si no hay en vivo, usar el último finalizado
+        elif finalizados:
+            finalizados.sort(key=mapear_fecha, reverse=True)
+            evento = finalizados[0]
+
+        # Si no hay ninguno
+        else:
+            return {}
+
+        fixture_id = evento.get("id")
+        fecha = evento.get("date", "")
+
+        competition = (evento.get("competitions") or [{}])[0]
+        competidores = competition.get("competitors", [])
+
+        home_data = next((c for c in competidores if c.get("homeAway") == "home"), {})
+        away_data = next((c for c in competidores if c.get("homeAway") == "away"), {})
+
+        home = home_data.get("team", {}).get("displayName", "")
+        away = away_data.get("team", {}).get("displayName", "")
+        goles_home = home_data.get("score", "")
+        goles_away = away_data.get("score", "")
+
+        venue = competition.get("venue", {})
+        estadio = venue.get("fullName", "")
+        ciudad = venue.get("address", {}).get("city", "")
+
+        arbitros = competition.get("officials", [])
+        arbitro = arbitros[0].get("displayName", "") if arbitros else ""
+
+        ronda = ""
+        if competition.get("notes"):
+            ronda = competition["notes"][0].get("headline", "")
+        elif evento.get("name"):
+            ronda = evento.get("name", "")
+
+        if len(ronda) > 80:
+            ronda = ronda[:80].rsplit(" ", 1)[0] + "..."
+
+        descripcion = f"{ronda}: {home} {goles_home}-{goles_away} {away}".strip(": ")
+
+        eventos_texto = []
+        for det in competition.get("details", [])[:15]:
+            tipo_evento = det.get("type", {}).get("text", "")
+            equipo_id = det.get("team", {}).get("id")
+            equipo_nombre = home if equipo_id == home_data.get("team", {}).get("id") else away
+
+            if tipo_evento:
+                eventos_texto.append(f"{tipo_evento} ({equipo_nombre})")
+
+        eventos_str = ", ".join(eventos_texto) if eventos_texto else ""
+
+        contexto = (
+            f"{descripcion}. Fecha: {fecha}. Estadio: {estadio}"
+            f"{', ' + ciudad if ciudad else ''}. "
+            f"Árbitro: {arbitro}."
+            f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
+        )
+
+        return {
+            "fixture_id": fixture_id,
+            "clave": f"Mundial2026_{fixture_id}",
+            "descripcion": descripcion,
+            "tipo": "en_curso" if en_vivo else "finalizado",
+            "contexto": contexto,
+        }
+
+    except Exception as e:
+        print(e)
+        return {}        # 2. Ordenar usando datetime real para evitar fallas de ordenamiento de strings
+     
         def mapear_fecha(e):
             try:
                 return datetime.fromisoformat(e.get("date", "").replace("Z", "+00:00"))
