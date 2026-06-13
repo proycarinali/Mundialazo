@@ -6,7 +6,7 @@ import random
 import string
 import requests
 from datetime import datetime
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from openai import OpenAI
@@ -25,6 +25,7 @@ app.add_middleware(
  
 GROK_API_KEY = os.environ.get("GROK_API_KEY")
 FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY")
+MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN")   # Access Token de Mercado Pago
  
 # ─── Archivos RAG ────────────────────────────────────────────────────────────
 DIR = os.path.dirname(__file__)
@@ -32,7 +33,8 @@ CACHE_FILE    = os.path.join(DIR, "preguntas_cache.json")
 PARTIDO_FILE  = os.path.join(DIR, "partido_cache.json")
 SALAS_FILE    = os.path.join(DIR, "salas_cache.json")       # ← NUEVO
 PARTIDAS_FILE = os.path.join(DIR, "partidas_cache.json")    # ← NUEVO
-HISTORIAL_FILE = os.path.join(DIR, "partidos_historial.json")  # ← NUEVO: historial de partidos jugables
+HISTORIAL_FILE = os.path.join(DIR, "partidos_historial.json")  # ← historial de partidos jugables
+USUARIOS_FILE  = os.path.join(DIR, "usuarios_cache.json")          # ← usuarios registrados
  
 # ─── Cliente Groq ─────────────────────────────────────────────────────────────
 grok_client = None
@@ -61,6 +63,13 @@ class GuardarResultadoRequest(BaseModel):
     respuestas_correctas: int
     total_preguntas: int
     clave_partido: str = ""
+
+class RegistrarUsuarioRequest(BaseModel):
+    email: str
+
+class VerificarPagoRequest(BaseModel):
+    email: str
+    payment_id: str = ""
  
  
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -966,4 +975,226 @@ async def historial_jugador(nombre: str):
         "partidas_jugadas": len(historial),
         "mejor_puntaje": mejor["puntaje"],
         "historial": historial,
+    }
+
+ 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  HELPERS — usuarios
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def cargar_usuarios() -> dict:
+    """Devuelve el dict de usuarios { email: { ...datos } }."""
+    if os.path.exists(USUARIOS_FILE):
+        try:
+            with open(USUARIOS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def guardar_usuarios(usuarios: dict):
+    with open(USUARIOS_FILE, "w", encoding="utf-8") as f:
+        json.dump(usuarios, f, ensure_ascii=False, indent=2)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ENDPOINTS — usuarios y pagos
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/usuarios/registrar")
+async def registrar_usuario(body: RegistrarUsuarioRequest):
+    """
+    Registra un usuario por email si no existe todavía.
+    Devuelve el estado actual del usuario (pagado, sala_defecto).
+    """
+    email = body.email.strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Email inválido.")
+
+    usuarios = cargar_usuarios()
+
+    if email not in usuarios:
+        usuarios[email] = {
+            "email": email,
+            "pagado": False,
+            "sala_defecto": "",
+            "creado_en": datetime.utcnow().isoformat(),
+            "pagado_en": None,
+            "payment_id": None,
+        }
+        guardar_usuarios(usuarios)
+
+    return usuarios[email]
+
+
+@app.get("/api/usuarios/{email}")
+async def obtener_usuario(email: str):
+    """Devuelve el estado de un usuario por email."""
+    email = email.strip().lower()
+    usuarios = cargar_usuarios()
+    if email not in usuarios:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+    return usuarios[email]
+
+
+@app.post("/api/usuarios/sala")
+async def guardar_sala_usuario(body: dict):
+    """Guarda la sala por defecto de un usuario."""
+    email = (body.get("email") or "").strip().lower()
+    sala = (body.get("sala_defecto") or "").strip().upper()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email requerido.")
+
+    usuarios = cargar_usuarios()
+    if email not in usuarios:
+        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
+
+    usuarios[email]["sala_defecto"] = sala
+    guardar_usuarios(usuarios)
+    return {"ok": True, "sala_defecto": sala}
+
+
+@app.post("/api/pagos/crear-preference")
+async def crear_preference_mp(body: RegistrarUsuarioRequest, request: Request):
+    """
+    Crea una preference de pago en Mercado Pago para el email dado.
+    Requiere MP_ACCESS_TOKEN en el entorno.
+    """
+    if not MP_ACCESS_TOKEN:
+        raise HTTPException(status_code=500, detail="MP_ACCESS_TOKEN no configurado en el servidor.")
+
+    email = body.email.strip().lower()
+
+    # Detectar dominio base automáticamente desde el request
+    base_url = str(request.base_url).rstrip("/")
+
+    payload = {
+        "items": [
+            {
+                "title": "Acceso a salas grupales - Golazo IA Mundial 2026",
+                "quantity": 1,
+                "unit_price": 5000,
+                "currency_id": "ARS",
+            }
+        ],
+        "payer": {"email": email},
+        "back_urls": {
+            "success": f"{base_url}/api/pagos/callback?status=approved&email={email}",
+            "failure": f"{base_url}/api/pagos/callback?status=failure&email={email}",
+            "pending": f"{base_url}/api/pagos/callback?status=pending&email={email}",
+        },
+        "auto_return": "approved",
+        "notification_url": f"{base_url}/api/pagos/webhook",
+        "external_reference": email,
+        "statement_descriptor": "Golazo IA",
+    }
+
+    res = requests.post(
+        "https://api.mercadopago.com/checkout/preferences",
+        headers={
+            "Authorization": f"Bearer {MP_ACCESS_TOKEN}",
+            "Content-Type": "application/json",
+        },
+        json=payload,
+        timeout=10,
+    )
+
+    if res.status_code not in (200, 201):
+        raise HTTPException(status_code=500, detail=f"Error MP: {res.text}")
+
+    data = res.json()
+    return {
+        "preference_id": data.get("id"),
+        "init_point": data.get("init_point"),          # URL producción
+        "sandbox_init_point": data.get("sandbox_init_point"),  # URL sandbox
+    }
+
+
+@app.get("/api/pagos/callback")
+async def pago_callback(status: str = "", email: str = "", payment_id: str = ""):
+    """
+    MP redirige aquí tras el pago. Si fue aprobado, activa al usuario
+    y redirige al frontend con ?pago=ok&email=...
+    """
+    email = email.strip().lower()
+    if status == "approved" and email:
+        usuarios = cargar_usuarios()
+        if email in usuarios:
+            usuarios[email]["pagado"] = True
+            usuarios[email]["pagado_en"] = datetime.utcnow().isoformat()
+            if payment_id:
+                usuarios[email]["payment_id"] = payment_id
+            guardar_usuarios(usuarios)
+
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url=f"/?pago={'ok' if status == 'approved' else 'error'}&email={email}")
+
+
+@app.post("/api/pagos/webhook")
+async def pago_webhook(request):
+    """
+    Webhook de MP: notificación server-to-server cuando un pago cambia de estado.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        return {"ok": False}
+
+    if body.get("type") == "payment":
+        payment_id = str(body.get("data", {}).get("id", ""))
+        if payment_id and MP_ACCESS_TOKEN:
+            res = requests.get(
+                f"https://api.mercadopago.com/v1/payments/{payment_id}",
+                headers={"Authorization": f"Bearer {MP_ACCESS_TOKEN}"},
+                timeout=8,
+            )
+            if res.status_code == 200:
+                pago = res.json()
+                if pago.get("status") == "approved":
+                    email = (pago.get("payer", {}).get("email") or
+                             pago.get("external_reference") or "").strip().lower()
+                    if email:
+                        usuarios = cargar_usuarios()
+                        if email in usuarios:
+                            usuarios[email]["pagado"] = True
+                            usuarios[email]["pagado_en"] = datetime.utcnow().isoformat()
+                            usuarios[email]["payment_id"] = payment_id
+                            guardar_usuarios(usuarios)
+
+    return {"ok": True}
+
+
+@app.post("/api/pagos/verificar")
+async def verificar_pago(body: VerificarPagoRequest):
+    """
+    El frontend puede consultar si el usuario ya fue activado
+    (útil para polling después de redirigir desde MP).
+    """
+    email = body.email.strip().lower()
+    usuarios = cargar_usuarios()
+
+    if email not in usuarios:
+        return {"pagado": False, "email": email}
+
+    u = usuarios[email]
+
+    # Si viene payment_id, verificar directamente contra MP
+    if body.payment_id and MP_ACCESS_TOKEN and not u.get("pagado"):
+        res = requests.get(
+            f"https://api.mercadopago.com/v1/payments/{body.payment_id}",
+            headers={"Authorization": f"Bearer {MP_ACCESS_TOKEN}"},
+            timeout=8,
+        )
+        if res.status_code == 200 and res.json().get("status") == "approved":
+            u["pagado"] = True
+            u["pagado_en"] = datetime.utcnow().isoformat()
+            u["payment_id"] = body.payment_id
+            guardar_usuarios(usuarios)
+
+    return {
+        "pagado": u.get("pagado", False),
+        "email": email,
+        "sala_defecto": u.get("sala_defecto", ""),
+        "pagado_en": u.get("pagado_en"),
     }
