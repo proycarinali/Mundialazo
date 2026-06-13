@@ -5,7 +5,7 @@ import os
 import random
 import string
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -434,73 +434,6 @@ def obtener_ultimo_partido_mundial2026() -> dict:
 
     except Exception as e:
         print(e)
-        return {}        # 2. Ordenar usando datetime real para evitar fallas de ordenamiento de strings
-     
-        def mapear_fecha(e):
-            try:
-                return datetime.fromisoformat(e.get("date", "").replace("Z", "+00:00"))
-            except ValueError:
-                return datetime.min
-
-        finalizados.sort(key=mapear_fecha, reverse=True)
-        evento = finalizados[0]
-
-        fixture_id = evento.get("id")
-        fecha = evento.get("date", "")
-
-        competition = (evento.get("competitions") or [{}])[0]
-        competidores = competition.get("competitors", [])
-
-        home_data = next((c for c in competidores if c.get("homeAway") == "home"), {})
-        away_data = next((c for c in competidores if c.get("homeAway") == "away"), {})
-
-        home = home_data.get("team", {}).get("displayName", "")
-        away = away_data.get("team", {}).get("displayName", "")
-        goles_home = home_data.get("score", "")
-        goles_away = away_data.get("score", "")
-
-        venue = competition.get("venue", {})
-        estadio = venue.get("fullName", "")
-        ciudad = venue.get("address", {}).get("city", "")
-
-        arbitros = competition.get("officials", [])
-        arbitro = arbitros[0].get("displayName", "") if arbitros else ""
-
-        ronda = ""
-        if competition.get("notes"):
-            ronda = competition["notes"][0].get("headline", "")
-        elif evento.get("name"):
-            ronda = evento.get("name", "")
-        if len(ronda) > 80:
-            ronda = ronda[:80].rsplit(" ", 1)[0] + "..."
-
-        descripcion = f"{ronda}: {home} {goles_home}-{goles_away} {away}".strip(": ")
-
-        eventos_texto = []
-        for det in competition.get("details", [])[:15]:
-            tipo_evento = det.get("type", {}).get("text", "")
-            equipo_id = det.get("team", {}).get("id")
-            equipo_nombre = home if equipo_id == home_data.get("team", {}).get("id") else away
-            if tipo_evento:
-                eventos_texto.append(f"{tipo_evento} ({equipo_nombre})")
-
-        eventos_str = ", ".join(eventos_texto) if eventos_texto else ""
-
-        contexto = (
-            f"{descripcion}. Fecha: {fecha}. Estadio: {estadio}"
-            f"{', ' + ciudad if ciudad else ''}. "
-            f"Árbitro: {arbitro}."
-            f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
-        )
-
-        return {
-            "fixture_id": fixture_id,
-            "clave": f"Mundial2026_{fixture_id}",
-            "descripcion": descripcion,
-            "tipo": "finalizado",
-            "contexto": contexto,
-        }
-    except Exception:
         return {}
 
 # ═══════════════════════════════════════════════════════════════════════════════
