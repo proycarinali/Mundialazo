@@ -341,6 +341,70 @@
             border-radius: 20px;
             margin-left: 6px;
         }
+        .user-avatar {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            background: var(--primary);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; font-weight: bold;
+            margin: 0 auto 12px;
+        }
+        .user-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: rgba(37,99,235,0.15);
+            border: 1px solid rgba(37,99,235,0.3);
+            color: #60a5fa;
+            border-radius: 20px;
+            padding: 6px 14px;
+            font-size: 0.82rem;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        .pago-card {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 16px 0;
+            text-align: center;
+        }
+        .pago-monto {
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: #fff;
+            margin: 8px 0;
+        }
+        .pago-desc { font-size: 0.85rem; color: var(--text-muted); }
+        .btn-mp {
+            background: #009ee3;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            font-size: 1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 12px;
+            transition: background 0.2s;
+        }
+        .btn-mp:hover { background: #0088cc; }
+        .status-pago {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+        .activado-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(16,185,129,0.15);
+            border: 1px solid rgba(16,185,129,0.3);
+            color: var(--success);
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 0.82rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -350,9 +414,42 @@
     <div id="scr-menu" class="screen active">
         <h1>⚽ Golazo IA</h1>
         <p>Trivia mundialista impulsada por IA y estadísticas en tiempo real.</p>
-        <button class="btn" onclick="arrancarDeteccion()">Jugar Solo 🚀</button>
-        <button class="btn btn-secondary" onclick="irASalas()">🏟️ Jugar en Sala</button>
-        <button class="btn btn-secondary" onclick="irAHistorial()">📜 Jugar partido anterior</button>
+        <div id="menu-user-badge" style="display:none;margin-bottom:10px;"></div>
+        <button class="btn" onclick="arrancarDemoIndividual()">🎮 TRIVIA DEMO INDIVIDUAL</button>
+        <div id="menu-botones-sesion" style="display:none;">
+            <button class="btn btn-secondary" onclick="irASalasConAuth()">🏟️ Jugar en Sala</button>
+            <button class="btn btn-secondary" onclick="irAHistorial()">📜 Jugar partido anterior</button>
+        </div>
+        <button class="btn btn-secondary" id="btn-login-menu" style="margin-top:18px;background:#1e293b;font-size:0.85rem;" onclick="irALogin()">👤 Crear / Iniciar sesión</button>
+    </div>
+
+    <!-- LOGIN / REGISTRO -->
+    <div id="scr-login" class="screen">
+        <h1>👤 Acceder</h1>
+        <p>Ingresá tu email para crear una cuenta o iniciar sesión.</p>
+        <label class="input-label">Email</label>
+        <input id="input-login-email" class="input-field" type="email" placeholder="tu@email.com">
+        <button class="btn" style="margin-top:14px;" onclick="procesarLogin()">Continuar ➡️</button>
+        <div id="login-error" style="color:var(--error);font-size:0.85rem;margin-top:10px;display:none;"></div>
+        <button class="btn btn-secondary" style="margin-top:10px;" onclick="volverAlMenu()">← Volver</button>
+    </div>
+
+    <!-- PANTALLA DE PAGO -->
+    <div id="scr-pago" class="screen">
+        <h1>💳 Activar Sala</h1>
+        <div id="pago-user-info" class="user-badge" style="margin-bottom:16px;"></div>
+        <p>Para jugar en salas grupales necesitás activar tu cuenta.</p>
+        <div class="pago-card">
+            <div style="font-size:2rem;">🏟️</div>
+            <div class="pago-monto">$5.000</div>
+            <div class="pago-desc">Acceso completo a salas grupales durante todo el Mundial 2026</div>
+            <button class="btn-mp" onclick="pagarMercadoPago()">
+                💳 Pagar con Mercado Pago
+            </button>
+        </div>
+        <div class="status-pago" id="pago-status"></div>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="verificarPagoManual()">🔄 Ya pagué, verificar</button>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="volverAlMenu()">← Volver</button>
     </div>
 
     <!-- ②b HISTORIAL DE PARTIDOS -->
@@ -409,6 +506,7 @@
 
         <button class="btn" onclick="arrancarDesdeSala()">¡Jugar ahora! 🚀</button>
         <div id="sala-espera-msg" style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;"></div>
+        <button class="btn btn-secondary" style="margin-top:10px;" onclick="volverAlMenu()">← Volver al menú</button>
     </div>
 
     <!-- ④ RANKING FINAL DE SALA -->
@@ -484,6 +582,7 @@
 
         <button class="btn" onclick="confirmarPartido()">¡Jugar con este partido! 🎮</button>
         <button class="btn btn-secondary" onclick="cambiarPartido()">🔄 Detectar otro partido</button>
+        <button class="btn btn-secondary" onclick="volverAlMenu()" style="margin-top:8px;">← Volver al menú</button>
     </div>
 
     <!-- ④ GENERANDO PREGUNTAS -->
@@ -554,6 +653,30 @@ function volverAlMenu() {
 }
 
 // ─── PASO 1: Arrancar detección de partido ────────────────────────────────────
+// ─── DEMO INDIVIDUAL: siempre usa banco histórico fijo (Qatar 2022) ─────────
+function arrancarDemoIndividual() {
+    puntosLocal = 0;
+    indicePreguntaActual = 0;
+    document.getElementById('local-score').innerText = '0 pts';
+    salaActual = { codigo: '', nombreJugador: '' };
+    document.getElementById('btn-ver-ranking-sala').style.display = 'none';
+
+    preguntasPartida = muestraAleatoria(BANCO_NATIVO, 10);
+    partidoActual = {
+        clave: 'Qatar2022_Final',
+        descripcion: 'Final Qatar 2022: Argentina 3-3 (4-2) Francia',
+        tipo: 'finalizado',
+        contexto: 'Final del Mundial Qatar 2022.',
+        desde_cache: true
+    };
+
+    const label = document.getElementById('partido-label-quiz');
+    label.innerText = '⚽ Final Qatar 2022: Argentina 3-3 (4-2) Francia';
+
+    cambiarPantalla('scr-quiz');
+    renderizarPreguntaActual();
+}
+
 async function arrancarDeteccion() {
     cambiarPantalla('scr-detectando');
     document.getElementById('detectando-msg').innerText =
@@ -714,7 +837,19 @@ function renderizarPreguntaActual() {
 }
 
 function verificarRespuesta(opcion) {
-    document.querySelectorAll('.btn-option').forEach(b => b.disabled = true);
+    document.querySelectorAll('.btn-option').forEach(b => {
+        b.disabled = true;
+        if (b.innerText === preguntaActualObj.correcta) {
+            b.style.background = 'rgba(16,185,129,0.25)';
+            b.style.borderColor = 'var(--success)';
+            b.style.color = 'var(--success)';
+            b.style.fontWeight = 'bold';
+        } else if (b.innerText === opcion) {
+            b.style.background = 'rgba(239,68,68,0.25)';
+            b.style.borderColor = 'var(--error)';
+            b.style.color = 'var(--error)';
+        }
+    });
     const fb = document.getElementById('box-feedback');
     if (opcion === preguntaActualObj.correcta) {
         fb.innerText = '¡Correcto! 🚀';
@@ -1020,6 +1155,256 @@ function copiarCodigo() {
         setTimeout(() => { el.innerText = 'Tocá para copiar'; }, 2000);
     });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  AUTH — login por email + pago real con Mercado Pago (backend)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function obtenerUsuario() {
+    try { return JSON.parse(localStorage.getItem('golazo_user') || 'null'); } catch(e) { return null; }
+}
+
+function guardarUsuario(user) {
+    localStorage.setItem('golazo_user', JSON.stringify(user));
+}
+
+function actualizarMenuBadge() {
+    const u = obtenerUsuario();
+    const badge = document.getElementById('menu-user-badge');
+    const btnLogin = document.getElementById('btn-login-menu');
+    const botonesSession = document.getElementById('menu-botones-sesion');
+    if (u && u.email) {
+        let badgeHtml = u.pagado
+            ? '<div class="activado-badge">✅ ' + u.email + '</div>'
+            : '<div class="user-badge">👤 ' + u.email + ' · Sin activar</div>';
+        if (u.pagado && u.sala_defecto) {
+            badgeHtml += '<div style="font-size:0.78rem;color:#60a5fa;margin-top:4px;">🏟️ Sala: <strong>' + u.sala_defecto + '</strong></div>';
+        }
+        badge.style.display = 'block';
+        badge.innerHTML = badgeHtml;
+        btnLogin.innerText = '🚪 Cerrar sesión';
+        btnLogin.onclick = cerrarSesion;
+        botonesSession.style.display = 'block';
+    } else {
+        badge.style.display = 'none';
+        btnLogin.innerText = '👤 Crear / Iniciar sesión';
+        btnLogin.onclick = irALogin;
+        botonesSession.style.display = 'none';
+    }
+}
+
+function irALogin() {
+    cambiarPantalla('scr-login');
+    document.getElementById('login-error').style.display = 'none';
+    const u = obtenerUsuario();
+    if (u && u.email) document.getElementById('input-login-email').value = u.email;
+}
+
+async function procesarLogin() {
+    const email = document.getElementById('input-login-email').value.trim().toLowerCase();
+    const errEl = document.getElementById('login-error');
+    if (!email || !/^[^@]+@[^@]+\.[^@]+$/.test(email)) {
+        errEl.innerText = 'Ingresá un email válido.';
+        errEl.style.display = 'block';
+        return;
+    }
+    errEl.style.display = 'none';
+
+    // Registrar/obtener usuario en el backend
+    let serverUser;
+    try {
+        const res = await fetch('/api/usuarios/registrar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+        serverUser = await res.json();
+    } catch(e) {
+        errEl.innerText = 'Error de conexión. Intentá de nuevo.';
+        errEl.style.display = 'block';
+        return;
+    }
+
+    // Sincronizar estado del servidor al localStorage
+    const u = {
+        email: serverUser.email,
+        pagado: serverUser.pagado || false,
+        sala_defecto: serverUser.sala_defecto || '',
+    };
+    guardarUsuario(u);
+    actualizarMenuBadge();
+
+    if (u.pagado) {
+        volverAlMenu();
+        setTimeout(() => irASalas(), 100);
+    } else {
+        irAPago();
+    }
+}
+
+function irAPago() {
+    const u = obtenerUsuario();
+    if (!u) { cambiarPantalla('scr-login'); return; }
+    document.getElementById('pago-user-info').innerHTML = '👤 ' + u.email;
+    document.getElementById('pago-status').innerText = '';
+    cambiarPantalla('scr-pago');
+}
+
+async function pagarMercadoPago() {
+    const u = obtenerUsuario();
+    if (!u) return;
+    const statusEl = document.getElementById('pago-status');
+    statusEl.innerText = 'Generando link de pago...';
+
+    try {
+        const res = await fetch('/api/pagos/crear-preference', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Error generando pago');
+
+        // Usar sandbox en desarrollo, init_point en producción
+        const url = data.sandbox_init_point || data.init_point;
+        if (!url) throw new Error('No se recibió URL de pago');
+
+        statusEl.innerHTML = 'Redirigiendo a Mercado Pago...';
+        window.location.href = url;   // redirige en la misma pestaña; MP vuelve via back_url
+
+    } catch(err) {
+        statusEl.innerHTML = '<span style="color:var(--error);">❌ ' + err.message + '</span>';
+    }
+}
+
+async function verificarPagoManual() {
+    const statusEl = document.getElementById('pago-status');
+    const u = obtenerUsuario();
+    if (!u) return;
+    statusEl.innerText = 'Verificando pago en el servidor...';
+
+    try {
+        const res = await fetch('/api/pagos/verificar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email, payment_id: '' })
+        });
+        const data = await res.json();
+
+        if (data.pagado) {
+            u.pagado = true;
+            u.sala_defecto = data.sala_defecto || u.sala_defecto || '';
+            guardarUsuario(u);
+            actualizarMenuBadge();
+            statusEl.innerHTML = '<span style="color:var(--success);">✅ ¡Pago confirmado! Tu cuenta está activada.</span>';
+            setTimeout(() => { volverAlMenu(); irASalas(); }, 1500);
+        } else {
+            statusEl.innerHTML = 'Pago no encontrado todavía. Si ya pagaste esperá unos segundos y volvé a intentar.';
+        }
+    } catch(err) {
+        statusEl.innerHTML = '<span style="color:var(--error);">Error verificando: ' + err.message + '</span>';
+    }
+}
+
+function cerrarSesion() {
+    localStorage.removeItem('golazo_user');
+    actualizarMenuBadge();
+    volverAlMenu();
+}
+
+// ─── irASalas con auth gate ────────────────────────────────────────────────
+function irASalasConAuth() {
+    const u = obtenerUsuario();
+    if (!u || !u.email) { cambiarPantalla('scr-login'); return; }
+    if (!u.pagado) { irAPago(); return; }
+    irASalas();
+    if (u.sala_defecto) {
+        document.getElementById('input-codigo-unirse').value = u.sala_defecto;
+        switchTab('unirse');
+    }
+    if (u.nombre) {
+        document.getElementById('input-nombre-crear').value = u.nombre;
+        document.getElementById('input-nombre-unirse').value = u.nombre;
+    }
+}
+
+// ─── Guardar sala en backend + localStorage al unirse/crear ──────────────
+const _crearSalaOrig = crearSala;
+async function crearSala() {
+    await _crearSalaOrig();
+    const u = obtenerUsuario();
+    if (u && salaActual.codigo) {
+        u.sala_defecto = salaActual.codigo;
+        u.nombre = salaActual.nombreJugador;
+        guardarUsuario(u);
+        actualizarMenuBadge();
+        // Persistir en backend
+        fetch('/api/usuarios/sala', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email, sala_defecto: salaActual.codigo })
+        }).catch(() => {});
+    }
+}
+
+const _unirseSalaOrig = unirseSala;
+async function unirseSala() {
+    await _unirseSalaOrig();
+    const u = obtenerUsuario();
+    if (u && salaActual.codigo) {
+        u.sala_defecto = salaActual.codigo;
+        u.nombre = salaActual.nombreJugador;
+        guardarUsuario(u);
+        actualizarMenuBadge();
+        // Persistir en backend
+        fetch('/api/usuarios/sala', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: u.email, sala_defecto: salaActual.codigo })
+        }).catch(() => {});
+    }
+}
+
+// ─── Al cargar: badge + retorno de MP ────────────────────────────────────
+window.addEventListener('DOMContentLoaded', async () => {
+    actualizarMenuBadge();
+
+    const params = new URLSearchParams(window.location.search);
+    const pagoStatus = params.get('pago');
+    const emailParam = (params.get('email') || '').toLowerCase();
+
+    if (pagoStatus === 'ok' && emailParam) {
+        window.history.replaceState({}, '', window.location.pathname);
+        // Sincronizar con backend
+        try {
+            const res = await fetch('/api/pagos/verificar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: emailParam, payment_id: params.get('payment_id') || '' })
+            });
+            const data = await res.json();
+            if (data.pagado) {
+                const u = obtenerUsuario() || {};
+                u.email = emailParam;
+                u.pagado = true;
+                u.sala_defecto = data.sala_defecto || u.sala_defecto || '';
+                guardarUsuario(u);
+                actualizarMenuBadge();
+                cambiarPantalla('scr-pago');
+                document.getElementById('pago-user-info').innerHTML = '👤 ' + emailParam;
+                document.getElementById('pago-status').innerHTML = '<span style="color:var(--success);">✅ ¡Pago confirmado! Tu cuenta está activada.</span>';
+                setTimeout(() => { volverAlMenu(); irASalas(); }, 2000);
+            }
+        } catch(e) {}
+    } else if (pagoStatus === 'error') {
+        window.history.replaceState({}, '', window.location.pathname);
+        const u = obtenerUsuario();
+        if (u) {
+            irAPago();
+            document.getElementById('pago-status').innerHTML = '<span style="color:var(--error);">❌ El pago no fue aprobado. Podés intentarlo de nuevo.</span>';
+        }
+    }
+});
 </script>
 </body>
 </html>
