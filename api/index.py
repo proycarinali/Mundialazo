@@ -319,32 +319,31 @@ ESPN_SUMMARY_URL    = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa
 import requests
 from datetime import datetime
 
-def obtener_ultimo_partido_mundial2026() -> dict:
-    try:
-        # 1. Definir rango de fechas dinámico para no perder partidos de ayer
-        fecha_inicio = "20260611"
-        fecha_hoy = (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
-        url = f"{ESPN_SCOREBOARD_URL}?dates={fecha_inicio}-{fecha_hoy}&limit=100"
+finalizados = []
+en_vivo = []
 
-        res = requests.get(url, timeout=6)
-        if res.status_code != 200:
-            return {}
+for ev in eventos:
+    status = ev.get("status", {}).get("type", {})
 
-        data = res.json()
-        eventos = data.get("events", [])
-        if not eventos:
-            return {}
+    if status.get("state") == "in":
+        en_vivo.append(ev)
 
-        finalizados = []
-        for ev in eventos:
-            status = ev.get("status", {}).get("type", {})
-            # Agregamos validación por nombre de estado por seguridad
-            if status.get("completed") is True or status.get("state") == "post" or status.get("name") == "STATUS_FINAL":
-                finalizados.append(ev)
+    if (
+        status.get("completed") is True
+        or status.get("state") == "post"
+        or status.get("name") == "STATUS_FINAL"
+    ):
+        finalizados.append(ev)
 
-        if not finalizados:
-            return {}
+# Prioridad: partido en vivo
+if en_vivo:
+    return en_vivo[-1]
 
+# Si no hay en vivo, último finalizado
+if finalizados:
+    return finalizados[-1]
+
+return {}
         # 2. Ordenar usando datetime real para evitar fallas de ordenamiento de strings
         def mapear_fecha(e):
             try:
