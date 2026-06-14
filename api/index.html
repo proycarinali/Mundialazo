@@ -115,7 +115,8 @@
             background-color: #334155;
             border-color: #475569;
         }
-        /* Estilos añadidos para las respuestas correctas e incorrectas */
+        
+        /* Nuevas clases visuales para aciertos y errores */
         .btn-option.correct-choice {
             background-color: rgba(16, 185, 129, 0.2) !important;
             border-color: var(--success) !important;
@@ -126,6 +127,7 @@
             border-color: var(--error) !important;
             color: #fff;
         }
+
         .feedback {
             padding: 12px;
             border-radius: 8px;
@@ -447,48 +449,3 @@
 
     <div id="scr-sala-ranking-total" class="screen">
         <h1>🏆 Ranking Total</h1>
-        <div id="sala-ranking-total-badge" class="sala-info-badge">🏟️ Sala: ------</div>
-        <p style="font-size:0.85rem;">Suma de puntos de todas las trivias jugadas en esta sala durante el Mundial.</p>
-
-        <table class="ranking-tabla">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Jugador</th>
-                    <th style="text-align:right;">Puntos totales</th>
-                    <th style="text-align:right;">Partidas</th>
-                </tr>
-            </thead>
-            <tbody id="ranking-total-tbody"></tbody>
-        </table>
-
-        <button class="btn" onclick="volverAlMenu()">Volver al menú 🏠</button>
-        <button class="btn btn-secondary" style="margin-top:8px;" onclick="cambiarPantalla('scr-sala-ranking')">← Volver al ranking de esta trivia</button>
-    </div>
-
-    <div id="scr-detectando" class="screen">
-        <h1>Buscando partido...</h1>
-        <div class="loader"></div>
-        <p id="detectando-msg">Consultando si hay un Mundial en curso o identificando el último finalizado...</p>
-    </div>
-
-    <div id="scr-partido" class="screen">
-        <h1>⚽ Partido detectado</h1>
-        <p>Estas preguntas se generarán sobre este partido:</p>
-
-        <div class="partido-card">
-            <span id="partido-badge" class="badge"></span>
-            <h3 id="partido-nombre"></h3>
-            <p  id="partido-contexto"></p>
-            <div id="cache-note-partido" class="cache-note" style="display:none;">
-                📦 <span>Partido guardado en RAG — las preguntas se cargarán al instante</span>
-            </div>
-        </div>
-
-        <button class="btn" onclick="confirmarPartido()">¡Jugar con este partido! 🎮</button>
-        <button class="btn btn-secondary" onclick="cambiarPartido()">🔄 Detectar otro partido</button>
-    </div>
-
-    <div id="scr-loading" class="screen">
-        <h1>Preparando Trivia...</h1>
-        <div class="loader">
