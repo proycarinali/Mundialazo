@@ -341,18 +341,84 @@
             border-radius: 20px;
             margin-left: 6px;
         }
+
+        /* ── Selector de deporte ── */
+        .deporte-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin: 20px 0;
+        }
+        .deporte-card {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 14px;
+            padding: 22px 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        .deporte-card:hover {
+            border-color: var(--primary);
+            background: rgba(37,99,235,0.12);
+            transform: translateY(-2px);
+        }
+        .deporte-card .deporte-icon { font-size: 2.4rem; display: block; margin-bottom: 8px; }
+        .deporte-card .deporte-nombre { font-weight: bold; font-size: 1rem; color: var(--text); }
+        .deporte-card .deporte-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
+
+        /* ── Selector de liga ── */
+        .liga-lista {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0;
+        }
+        .liga-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 13px 16px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.18s;
+        }
+        .liga-item:hover {
+            border-color: var(--primary);
+            background: rgba(37,99,235,0.1);
+        }
+        .liga-item .liga-info { display: flex; flex-direction: column; gap: 2px; }
+        .liga-item .liga-nombre { font-weight: bold; font-size: 0.92rem; }
+        .liga-item .liga-pais { font-size: 0.75rem; color: var(--text-muted); }
+        .liga-item .liga-badge {
+            font-size: 0.7rem;
+            background: rgba(16,185,129,0.15);
+            color: var(--success);
+            padding: 2px 8px;
+            border-radius: 20px;
+        }
     </style>
 </head>
 <body>
 <div class="container">
 
-    <!-- ① MENU -->
+    <!-- ① MENU PRINCIPAL -->
     <div id="scr-menu" class="screen active">
         <h1>⚽ Golazo IA</h1>
-        <p>Trivia mundialista impulsada por IA y estadísticas en tiempo real.</p>
+        <p>Trivia futbolera impulsada por IA y estadísticas en tiempo real.</p>
         <button class="btn" onclick="arrancarDeteccion()">Jugar Solo 🚀</button>
         <button class="btn btn-secondary" onclick="irASalas()">🏟️ Jugar en Sala</button>
         <button class="btn btn-secondary" onclick="irAHistorial()">📜 Jugar partido anterior</button>
+    </div>
+    <div id="scr-ligas" class="screen">
+        <h1>⚽ Elegí la liga</h1>
+        <p id="ligas-subtitle">No hay Mundial activo. ¿De qué liga querés jugar?</p>
+        <div class="loader" id="ligas-loader"></div>
+        <ul id="ligas-lista" class="liga-lista" style="display:none;"></ul>
+        <div id="ligas-error" style="display:none;color:var(--error);font-size:0.85rem;margin:12px 0;"></div>
+        <button class="btn btn-secondary" onclick="cambiarPantalla('scr-deporte')">← Volver</button>
     </div>
 
     <!-- ②b HISTORIAL DE PARTIDOS -->
@@ -584,6 +650,7 @@ let indicePreguntaActual = 0;
 let puntosLocal        = 0;
 let preguntaActualObj  = null;
 let partidoActual      = null;   // { clave, descripcion, tipo, contexto, desde_cache }
+let ligaSeleccionada   = null;   // { id, nombre, espn_slug } | null
 
 // ─── Banco fallback ───────────────────────────────────────────────────────────
 const BANCO_NATIVO = [
@@ -611,14 +678,81 @@ function volverAlMenu() {
     cambiarPantalla('scr-menu');
 }
 
+// ─── SELECTOR DE LIGA (cuando no hay Mundial) ─────────────────────────────────
+async function mostrarSelectorLigas() {
+    cambiarPantalla('scr-ligas');
+    const loader = document.getElementById('ligas-loader');
+    const lista  = document.getElementById('ligas-lista');
+    const error  = document.getElementById('ligas-error');
+
+    loader.style.display = 'block';
+    lista.style.display = 'none';
+    error.style.display = 'none';
+
+    try {
+        const res = await fetch('/api/ligas-activas');
+        const data = await res.json();
+        loader.style.display = 'none';
+
+        const ligas = data.ligas || [];
+        if (ligas.length === 0) {
+            error.innerText = 'No se encontraron ligas con partidos recientes.';
+            error.style.display = 'block';
+            return;
+        }
+
+        lista.innerHTML = ligas.map(liga => `
+            <li class="liga-item" onclick="seleccionarLiga(${liga.id}, '${liga.espn_slug}', '${liga.nombre}')">
+                <div class="liga-info">
+                    <span class="liga-nombre">${liga.nombre}</span>
+                    <span class="liga-pais">${liga.pais}</span>
+                </div>
+                <span class="liga-badge">${liga.partidos_recientes} partidos</span>
+            </li>
+        `).join('');
+        lista.style.display = 'block';
+
+    } catch (err) {
+        loader.style.display = 'none';
+        error.innerText = 'Error cargando ligas: ' + err.message;
+        error.style.display = 'block';
+    }
+}
+
+async function seleccionarLiga(ligaId, ligaSlug, ligaNombre) {
+    ligaSeleccionada = { id: ligaId, espn_slug: ligaSlug, nombre: ligaNombre };
+    cambiarPantalla('scr-detectando');
+    document.getElementById('detectando-msg').innerText = `Buscando último partido de ${ligaNombre}...`;
+
+    try {
+        const res = await fetch(`/api/deporte-info?deporte=futbol&liga_slug=${ligaSlug}&liga_id=${ligaId}`);
+        if (!res.ok) throw new Error('Error de servidor');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        partidoActual = data;
+        mostrarConfirmacionPartido(data);
+    } catch (err) {
+        console.error('Error cargando liga:', err);
+        partidoActual = {
+            clave: 'fallback_liga',
+            descripcion: `Último partido de ${ligaNombre}`,
+            tipo: 'finalizado',
+            contexto: '',
+            desde_cache: false,
+        };
+        mostrarConfirmacionPartido(partidoActual);
+    }
+}
+
 // ─── PASO 1: Arrancar detección de partido ────────────────────────────────────
 async function arrancarDeteccion() {
     cambiarPantalla('scr-detectando');
+    ligaSeleccionada = null;
     document.getElementById('detectando-msg').innerText =
-        'Consultando si hay un Mundial en curso o identificando el último finalizado...';
+        'Verificando si hay un partido del Mundial 2026 en curso...';
 
     try {
-        const res = await fetch('/api/mundial-info');
+        const res = await fetch('/api/deporte-info?deporte=futbol');
         if (!res.ok) throw new Error('Error de servidor');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
@@ -626,15 +760,8 @@ async function arrancarDeteccion() {
         mostrarConfirmacionPartido(data);
     } catch (err) {
         console.error('Error detectando partido:', err);
-        // Fallback: usar Qatar 2022
-        partidoActual = {
-            clave: 'Qatar2022_Final',
-            descripcion: 'Final Qatar 2022: Argentina 3-3 (4-2) Francia',
-            tipo: 'finalizado',
-            contexto: 'Final del Mundial Qatar 2022. Argentina ganó por penales 4-2 tras empatar 3-3.',
-            desde_cache: false
-        };
-        mostrarConfirmacionPartido(partidoActual);
+        // No hay Mundial → mostrar ligas activas
+        await mostrarSelectorLigas();
     }
 }
 
@@ -650,12 +777,11 @@ function mostrarConfirmacionPartido(partido) {
         badge.innerHTML = '<span class="live-dot"></span>EN CURSO';
     } else {
         badge.className = 'badge badge-finalizado';
-        badge.innerText = 'FINALIZADO';
+        badge.innerText = '⚽ FINALIZADO';
     }
 
     nombre.innerText = partido.descripcion || partido.clave;
 
-    // Mostrar solo las primeras ~200 chars del contexto como preview
     const preview = (partido.contexto || '').substring(0, 220);
     contexto.innerText = preview + (partido.contexto && partido.contexto.length > 220 ? '...' : '');
 
@@ -724,17 +850,13 @@ async function confirmarPartido() {
 
 // ─── PASO 3b: Cambiar partido → limpiar y volver a detectar ──────────────────
 async function cambiarPartido() {
-    cambiarPantalla('scr-detectando');
-    document.getElementById('detectando-msg').innerText =
-        'Forzando nueva detección de partido y limpiando banco de preguntas...';
-
-    try {
-        // Llamar refresh para que el backend limpie el RAG y detecte de nuevo
-        await fetch('/api/trivias?refresh=true&clave=__reset__');
-    } catch (_) {}
-
+    try { await fetch('/api/trivias?refresh=true&clave=__reset__'); } catch (_) {}
     partidoActual = null;
-    await arrancarDeteccion();
+    if (ligaSeleccionada) {
+        await mostrarSelectorLigas();
+    } else {
+        await arrancarDeteccion();
+    }
 }
 
 // ─── Helpers quiz ─────────────────────────────────────────────────────────────
