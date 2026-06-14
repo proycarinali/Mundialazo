@@ -27,7 +27,7 @@ GROK_API_KEY   = os.environ.get("GROK_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY")
  
-# ─── Archivos RAG ────────────────────────────────────────────────────────────
+# --- Archivos RAG ------------------------------------------------------------
 DIR = os.path.dirname(__file__)
 CACHE_FILE    = os.path.join(DIR, "preguntas_cache.json")
 PARTIDO_FILE  = os.path.join(DIR, "partido_cache.json")
@@ -35,7 +35,7 @@ SALAS_FILE    = os.path.join(DIR, "salas_cache.json")       # ← NUEVO
 PARTIDAS_FILE = os.path.join(DIR, "partidas_cache.json")    # ← NUEVO
 HISTORIAL_FILE = os.path.join(DIR, "partidos_historial.json")  # ← NUEVO: historial de partidos jugables
  
-# ─── Cliente Groq ─────────────────────────────────────────────────────────────
+# --- Cliente Groq -------------------------------------------------------------
 grok_client = None
 if GROK_API_KEY:
     grok_client = OpenAI(
@@ -43,7 +43,7 @@ if GROK_API_KEY:
         base_url="https://api.groq.com/openai/v1"
     )
 
-# ─── Cliente Gemini (fallback) ────────────────────────────────────────────────
+# --- Cliente Gemini (fallback) ------------------------------------------------
 gemini_client = None
 if GEMINI_API_KEY:
     gemini_client = OpenAI(
@@ -52,9 +52,9 @@ if GEMINI_API_KEY:
     )
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  MODELOS Pydantic
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
  
 class CrearSalaRequest(BaseModel):
     nombre_jugador: str
@@ -72,9 +72,9 @@ class GuardarResultadoRequest(BaseModel):
     clave_partido: str = ""
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  HELPERS RAG — partido y preguntas (sin cambios)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
  
 def cargar_partido_rag() -> dict:
     if os.path.exists(PARTIDO_FILE):
@@ -114,9 +114,9 @@ def limpiar_rag():
             os.remove(f)
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  HELPERS RAG — historial de partidos jugables  ← NUEVO
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 def cargar_historial() -> list:
     """
@@ -216,9 +216,9 @@ def guardar_preguntas_partido_historial(clave: str, preguntas: list):
 
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  HELPERS RAG — salas y partidas  ← NUEVO
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
  
 def cargar_salas() -> dict:
     """Devuelve el dict de salas { codigo: { ...datos de la sala } }."""
@@ -257,9 +257,9 @@ def generar_codigo_sala(longitud: int = 6) -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=longitud))
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  FOOTBALL API
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
  
 def obtener_jugadores_fixture(fixture_id) -> list:
     """
@@ -314,9 +314,9 @@ def obtener_jugadores_fixture(fixture_id) -> list:
     return jugadores
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  FOOTBALL API: último partido jugado del Mundial 2026
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 MUNDIAL_2026_LEAGUE_ID = 1   # (legado, ya no se usa con ESPN)
 MUNDIAL_2026_SEASON    = 2026
@@ -329,9 +329,9 @@ import requests
 from datetime import datetime
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  FOOTBALL API: último partido jugado del Mundial 2026 — API-Football oficial
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 
 API_FOOTBALL_BASE    = "https://v3.football.api-sports.io"
 MUNDIAL_2026_LEAGUE  = 1      # ID de la FIFA World Cup en api-football
@@ -653,200 +653,10 @@ def obtener_ultimo_partido_mundial2026_ESPN_DESUSO() -> dict:
         print(e)
         return {}
 
-# ═══════════════════════════════════════════════════════════════════════════════
-#  LIGAS DE FÚTBOL ACTIVAS — cuando no hay Mundial
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# Ligas principales con sus IDs en api-football y sus nombres en ESPN
-LIGAS_FUTBOL = [
-    {"id": 39,  "nombre": "Premier League",    "pais": "🏴󠁧󠁢󠁥󠁮󠁧󠁿 Inglaterra", "espn_slug": "eng.1",  "season": 2025},
-    {"id": 140, "nombre": "La Liga",           "pais": "🇪🇸 España",    "espn_slug": "esp.1",  "season": 2025},
-    {"id": 135, "nombre": "Serie A",           "pais": "🇮🇹 Italia",    "espn_slug": "ita.1",  "season": 2025},
-    {"id": 78,  "nombre": "Bundesliga",        "pais": "🇩🇪 Alemania",  "espn_slug": "ger.1",  "season": 2025},
-    {"id": 61,  "nombre": "Ligue 1",           "pais": "🇫🇷 Francia",   "espn_slug": "fra.1",  "season": 2025},
-    {"id": 2,   "nombre": "Champions League",  "pais": "🌍 Europa",     "espn_slug": "uefa.champions", "season": 2025},
-    {"id": 128, "nombre": "Liga Profesional",  "pais": "🇦🇷 Argentina", "espn_slug": "arg.1",  "season": 2025},
-    {"id": 11,  "nombre": "Copa Libertadores", "pais": "🌎 Sudamérica", "espn_slug": "conmebol.libertadores", "season": 2025},
-]
-
-
-def obtener_ligas_activas() -> list:
-    """
-    Devuelve las ligas de fútbol con al menos un partido reciente (últimas 48h
-    o en curso). Usa ESPN para no gastar requests de api-football.
-    """
-    ligas_activas = []
-    hoy = datetime.utcnow()
-    fecha_desde = (hoy - timedelta(days=3)).strftime("%Y%m%d")
-    fecha_hasta = (hoy + timedelta(days=1)).strftime("%Y%m%d")
-
-    for liga in LIGAS_FUTBOL:
-        try:
-            url = (
-                f"https://site.api.espn.com/apis/site/v2/sports/soccer"
-                f"/{liga['espn_slug']}/scoreboard"
-                f"?dates={fecha_desde}-{fecha_hasta}&limit=5"
-            )
-            res = requests.get(url, timeout=5)
-            if res.status_code != 200:
-                continue
-            eventos = res.json().get("events", [])
-            if eventos:
-                ligas_activas.append({**liga, "partidos_recientes": len(eventos)})
-        except Exception as e:
-            print(f"[LIGAS] Error chequeando {liga['nombre']}: {e}")
-            continue
-
-    return ligas_activas
-
-
-def obtener_ultimo_partido_liga(espn_slug: str, liga_id: int = None, season: int = 2025) -> dict:
-    """
-    Obtiene el último partido (en curso o finalizado) de una liga específica.
-    Intenta primero con api-football si hay key, luego ESPN.
-    """
-    # Intentar con api-football si hay key y liga_id
-    if FOOTBALL_API_KEY and liga_id:
-        headers = {
-            "x-rapidapi-host": "v3.football.api-sports.io",
-            "x-rapidapi-key": FOOTBALL_API_KEY,
-        }
-        try:
-            # Buscar en vivo
-            res_live = requests.get(
-                f"{API_FOOTBALL_BASE}/fixtures",
-                params={"league": liga_id, "season": season, "live": "all"},
-                headers=headers, timeout=8,
-            )
-            fixtures_live = res_live.json().get("response", []) if res_live.status_code == 200 else []
-
-            if not fixtures_live:
-                res_fin = requests.get(
-                    f"{API_FOOTBALL_BASE}/fixtures",
-                    params={"league": liga_id, "season": season, "status": "FT-AET-PEN", "last": 1},
-                    headers=headers, timeout=8,
-                )
-                fixtures = res_fin.json().get("response", []) if res_fin.status_code == 200 else []
-                if not fixtures:
-                    pass  # fallback a ESPN
-                else:
-                    return _mapear_fixture_api_football(fixtures[0], "finalizado", f"liga_{liga_id}")
-            else:
-                return _mapear_fixture_api_football(fixtures_live[0], "en_curso", f"liga_{liga_id}")
-        except Exception as e:
-            print(f"[LIGA] api-football falló para liga {liga_id}: {e}")
-
-    # Fallback: ESPN
-    return _obtener_ultimo_partido_espn_liga(espn_slug)
-
-
-def _mapear_fixture_api_football(fixture_data: dict, tipo: str, prefijo_clave: str) -> dict:
-    """Mapea un fixture de api-football al formato del historial."""
-    fix    = fixture_data.get("fixture", {})
-    league = fixture_data.get("league", {})
-    teams  = fixture_data.get("teams", {})
-    goals  = fixture_data.get("goals", {})
-    score  = fixture_data.get("score", {})
-
-    fixture_id = fix.get("id")
-    fecha      = fix.get("date", "")
-    estadio    = fix.get("venue", {}).get("name", "")
-    ciudad     = fix.get("venue", {}).get("city", "")
-    arbitro    = fix.get("referee", "")
-    ronda      = league.get("round", "")
-    liga_nombre = league.get("name", "")
-
-    home    = teams.get("home", {}).get("name", "")
-    away    = teams.get("away", {}).get("name", "")
-    goles_h = goals.get("home", "")
-    goles_a = goals.get("away", "")
-
-    pen_h = score.get("penalty", {}).get("home")
-    pen_a = score.get("penalty", {}).get("away")
-    penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None else ""
-
-    descripcion = f"{liga_nombre} — {ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip("— ")
-    clave = f"{prefijo_clave}_{fixture_id}"
-
-    contexto = (
-        f"{descripcion}. Fecha: {fecha}. "
-        f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
-        f"Árbitro: {arbitro}."
-    )
-
-    return {
-        "fixture_id": fixture_id,
-        "clave": clave,
-        "descripcion": descripcion,
-        "tipo": tipo,
-        "contexto": contexto,
-        "deporte": "futbol",
-    }
-
-
-def _obtener_ultimo_partido_espn_liga(espn_slug: str) -> dict:
-    """Obtiene el último partido de una liga desde ESPN."""
-    try:
-        hoy = datetime.utcnow()
-        fecha_desde = (hoy - timedelta(days=7)).strftime("%Y%m%d")
-        fecha_hasta = (hoy + timedelta(days=1)).strftime("%Y%m%d")
-        url = (
-            f"https://site.api.espn.com/apis/site/v2/sports/soccer"
-            f"/{espn_slug}/scoreboard"
-            f"?dates={fecha_desde}-{fecha_hasta}&limit=10"
-        )
-        res = requests.get(url, timeout=6)
-        if res.status_code != 200:
-            return {}
-        eventos = res.json().get("events", [])
-        if not eventos:
-            return {}
-
-        # Preferir en vivo, luego el más reciente finalizado
-        en_vivo = [e for e in eventos if e.get("status", {}).get("type", {}).get("state") == "in"]
-        finalizados = [e for e in eventos if e.get("status", {}).get("type", {}).get("state") == "post"]
-
-        evento = en_vivo[0] if en_vivo else (finalizados[-1] if finalizados else eventos[-1])
-        tipo = "en_curso" if en_vivo else "finalizado"
-
-        competition = (evento.get("competitions") or [{}])[0]
-        competidores = competition.get("competitors", [])
-        home_data = next((c for c in competidores if c.get("homeAway") == "home"), {})
-        away_data = next((c for c in competidores if c.get("homeAway") == "away"), {})
-
-        home = home_data.get("team", {}).get("displayName", "")
-        away = away_data.get("team", {}).get("displayName", "")
-        goles_home = home_data.get("score", "?")
-        goles_away = away_data.get("score", "?")
-        fixture_id = evento.get("id")
-        fecha = evento.get("date", "")
-
-        venue = competition.get("venue", {})
-        estadio = venue.get("fullName", "")
-        ciudad = venue.get("address", {}).get("city", "")
-
-        nombre_liga = evento.get("season", {}).get("slug", espn_slug).replace(".", " ").title()
-        descripcion = f"{nombre_liga}: {home} {goles_home}-{goles_away} {away}"
-        clave = f"{espn_slug.replace('.','_')}_{fixture_id}"
-
-        contexto = (
-            f"{descripcion}. Fecha: {fecha}. "
-            f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}."
-        )
-
-        return {
-            "fixture_id": fixture_id,
-            "clave": clave,
-            "descripcion": descripcion,
-            "tipo": tipo,
-            "contexto": contexto,
-            "deporte": "futbol",
-        }
-    except Exception as e:
-        print(f"[ESPN-LIGA] Error para {espn_slug}: {e}")
-        return {}
-
-
+# ===============================================================================
+#  IA: detectar partido del mundial
+# ===============================================================================
+ 
 def detectar_partido_mundial_con_ia() -> dict:
     if not grok_client:
         return {
@@ -888,9 +698,9 @@ def detectar_partido_mundial_con_ia() -> dict:
         }
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  IA: generar 50 preguntas de trivia
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 def _llamar_ia(client, model: str, prompt: str, nombre: str) -> str:
     """Llama a una IA y devuelve el texto crudo, o lanza excepción si falla."""
     print(f"[IA] Llamando a {nombre} (modelo: {model})...")
@@ -1008,9 +818,9 @@ def generar_preguntas(partido_info: dict, jugadores: list) -> list:
     return _generar_preguntas_ia(partido_info, jugadores)
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  ENDPOINTS — originales
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
  
 @app.get("/", response_class=HTMLResponse)
 async def root():
@@ -1175,56 +985,12 @@ async def probar_apis():
         "preguntas_en_cache": len(preguntas),
         "grok_configurado": grok_client is not None,
         "football_api_configurada": bool(FOOTBALL_API_KEY),
-        "nba_api_configurada": bool(NBA_API_KEY),
-        "gemini_configurado": gemini_client is not None,
     }
-
-
-@app.get("/api/ligas-activas")
-async def ligas_activas():
-    """
-    Devuelve las ligas de fútbol con partidos recientes (últimas 48-72h).
-    Se usa cuando no hay Mundial activo.
-    """
-    ligas = obtener_ligas_activas()
-    return {"ligas": ligas, "total": len(ligas)}
-
-
-@app.get("/api/deporte-info")
-async def deporte_info(deporte: str = "futbol", liga_slug: str = "", liga_id: int = 0):
-    """
-    Devuelve info del último partido según la liga seleccionada.
-    - deporte=futbol&liga_slug=eng.1&liga_id=39 → Premier League
-    - deporte=futbol (sin liga) → Mundial 2026
-    """
-    # Liga específica pedida por el usuario
-    if liga_slug and liga_id:
-        historial = cargar_historial()
-        ultimo_liga = next(
-            (p for p in reversed(historial)
-             if p.get("deporte") == "futbol" and liga_slug.replace(".", "_") in p.get("clave", "")),
-            None
-        )
-        partido_nuevo = obtener_ultimo_partido_liga(liga_slug, liga_id)
-        if not partido_nuevo:
-            if ultimo_liga:
-                return {**ultimo_liga, "desde_cache": True, "partido_nuevo_detectado": False}
-            return {"error": f"No se pudo obtener información de {liga_slug}."}
-
-        hay_nuevo = not ultimo_liga or partido_nuevo.get("clave") != ultimo_liga.get("clave")
-        if hay_nuevo:
-            item = upsert_partido_historial(partido_nuevo)
-            guardar_partido_rag(partido_nuevo)
-            return {**item, "desde_cache": False, "partido_nuevo_detectado": True}
-        return {**ultimo_liga, "desde_cache": True, "partido_nuevo_detectado": False}
-
-    # Sin liga → Mundial 2026 (comportamiento original)
-    return await mundial_info()
  
  
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
 #  ENDPOINTS — salas y resultados  ← NUEVO
-# ═══════════════════════════════════════════════════════════════════════════════
+# ===============================================================================
  
 @app.post("/api/salas/crear")
 async def crear_sala(body: CrearSalaRequest):
@@ -1350,7 +1116,7 @@ async def guardar_resultado(body: GuardarResultadoRequest):
  
     guardar_salas(salas)
  
-    # ── Persistir en RAG global de partidas (historial de participaciones) ──
+    # -- Persistir en RAG global de partidas (historial de participaciones) --
     partidas = cargar_partidas()
     partidas.append({
         "nombre_jugador":      body.nombre_jugador,
