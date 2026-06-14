@@ -23,7 +23,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
  
-GROK_API_KEY = os.environ.get("GROK_API_KEY")
+GROK_API_KEY   = os.environ.get("GROK_API_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY")
  
 # ─── Archivos RAG ────────────────────────────────────────────────────────────
@@ -40,6 +41,14 @@ if GROK_API_KEY:
     grok_client = OpenAI(
         api_key=GROK_API_KEY,
         base_url="https://api.groq.com/openai/v1"
+    )
+
+# ─── Cliente Gemini (fallback) ────────────────────────────────────────────────
+gemini_client = None
+if GEMINI_API_KEY:
+    gemini_client = OpenAI(
+        api_key=GEMINI_API_KEY,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
     )
  
  
@@ -484,9 +493,23 @@ def detectar_partido_mundial_con_ia() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  IA: generar 50 preguntas de trivia
 # ═══════════════════════════════════════════════════════════════════════════════
+def _llamar_ia(client, model: str, prompt: str, nombre: str) -> str:
+    """Llama a una IA y devuelve el texto crudo, o lanza excepción si falla."""
+    print(f"[IA] Llamando a {nombre} (modelo: {model})...")
+    response = client.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=7000,
+        timeout=45,
+    )
+    raw = response.choices[0].message.content
+    print(f"[IA] {nombre} respondió OK ({len(raw)} chars)")
+    return raw
+
+
 def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
-    if not grok_client:
-        print("[IA] ERROR: grok_client no está configurado (GROK_API_KEY falta o es inválida)")
+    if not grok_client and not gemini_client:
+        print("[IA] ERROR: no hay ninguna IA configurada (GROK_API_KEY ni GEMINI_API_KEY)")
         return []
 
     print(f"[IA] Iniciando generación de preguntas para: {partido_info.get('clave', 'sin clave')}")
@@ -536,26 +559,30 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
         "{\"preguntas\": [{\"pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}]}"
     )
 
-    try:
-        print("[IA] Llamando a Groq API...")
-        response = grok_client.chat.completions.create(
-            model = "llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=7000,
-            timeout=45,
-        )
-        raw = response.choices[0].message.content
-        print(f"[IA] Groq respondió OK ({len(raw)} chars)")
-        texto = raw.replace("```json", "").replace("```", "").strip()
-    except Exception as e:
-        print(f"[IA] ERROR: Groq API falló — {type(e).__name__}: {e}")
+    # Intentar con Groq primero, luego Gemini como fallback
+    raw = None
+    intentos = []
+    if grok_client:
+        intentos.append((grok_client, "llama-3.3-70b-versatile", "Groq"))
+    if gemini_client:
+        intentos.append((gemini_client, "gemini-1.5-flash", "Gemini"))
+
+    for client, model, nombre in intentos:
+        try:
+            raw = _llamar_ia(client, model, prompt, nombre)
+            break  # Si funcionó, salimos del loop
+        except Exception as e:
+            print(f"[IA] {nombre} falló — {type(e).__name__}: {e}. {'Intentando con fallback...' if nombre != intentos[-1][2] else 'Sin más opciones.'}")
+
+    if not raw:
+        print("[IA] Todas las IAs fallaron, no se pudieron generar preguntas.")
         return []
+
+    texto = raw.replace("```json", "").replace("```", "").strip()
 
     try:
         parsed = json.loads(texto)
     except json.JSONDecodeError:
-        # Intento de reparacion: escapar comillas dobles "sueltas" dentro de
-        # los valores de string que rompen el JSON (comunes en modelos chicos).
         import re
         texto_reparado = re.sub(
             r'(?<=[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,.\-])"(?=[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,.\-])',
@@ -565,10 +592,8 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
         try:
             parsed = json.loads(texto_reparado)
         except json.JSONDecodeError:
-            # Ultimo recurso: cortar en el ultimo "}" valido del array de preguntas
             ultimo_corte = texto.rfind("}")
             texto_cortado = texto[:ultimo_corte + 1]
-            # cerrar array y objeto principal
             if not texto_cortado.rstrip().endswith("]}"):
                 texto_cortado = texto_cortado.rstrip().rstrip(",") + "]}"
             parsed = json.loads(texto_cortado)
@@ -682,6 +707,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
     - Si se pasa `clave`, busca ese partido en el HISTORIAL y usa/genera
       su propio banco de preguntas (permite jugar partidos anteriores).
     - Si no se pasa `clave`, usa el partido marcado como 'ultimo'.
+    - Si no hay historial, consulta ESPN automáticamente.
     - `refresh=true` fuerza regenerar el banco de ese partido puntual.
     """
     if clave and clave != "__reset__":
@@ -691,16 +717,24 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
     else:
         partido_item = obtener_ultimo_del_historial()
         if not partido_item:
-            # No hay historial: pedirle al cliente que llame primero a /api/mundial-info
-            return {"error": "No hay partido disponible. Consultá /api/mundial-info primero."}
+            # No hay historial: intentar obtener el partido desde ESPN automáticamente
+            print("[TRIVIAS] No hay historial, consultando ESPN...")
+            partido_espn = obtener_ultimo_partido_mundial2026()
+            if partido_espn:
+                partido_item = upsert_partido_historial(partido_espn)
+                guardar_partido_rag(partido_espn)
+                refresh = True  # Forzar generación de preguntas ya que es nuevo
+                print(f"[TRIVIAS] Partido obtenido de ESPN: {partido_item.get('clave')}")
+            else:
+                return {"error": "No hay partido disponible. ESPN no devolvió datos."}
 
     banco = [] if refresh else partido_item.get("preguntas", [])
     print(f"[TRIVIAS] Partido: {partido_item.get('clave')} | preguntas en banco: {len(banco)} | refresh: {refresh}")
 
     if not banco:
-        if not grok_client:
-            print("[TRIVIAS] ERROR: GROK_API_KEY no configurada")
-            return {"error": "GROK_API_KEY no configurada"}
+        if not grok_client and not gemini_client:
+            print("[TRIVIAS] ERROR: no hay ninguna IA configurada")
+            return {"error": "No hay IA configurada (GROK_API_KEY ni GEMINI_API_KEY)"}
         try:
             jugadores = []
             fixture_id = partido_item.get("fixture_id")
