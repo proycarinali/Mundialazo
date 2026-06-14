@@ -327,7 +327,215 @@ ESPN_SUMMARY_URL    = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa
 
 import requests
 from datetime import datetime
-def obtener_ultimo_partido_mundial2026() -> dict:
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  FOOTBALL API: último partido jugado del Mundial 2026 — API-Football oficial
+# ═══════════════════════════════════════════════════════════════════════════════
+
+API_FOOTBALL_BASE    = "https://v3.football.api-sports.io"
+MUNDIAL_2026_LEAGUE  = 1      # ID de la FIFA World Cup en api-football
+MUNDIAL_2026_SEASON  = 2026
+
+
+def obtener_ultimo_partido_api_football() -> dict:
+    """
+    Obtiene el último partido (finalizado o en curso) del Mundial 2026
+    usando la API-Football (api-sports.io).
+    Devuelve un dict compatible con el historial del sistema:
+    {
+        "fixture_id": ..., "clave": "...", "descripcion": "...",
+        "tipo": "finalizado"|"en_curso", "contexto": "..."
+    }
+    """
+    if not FOOTBALL_API_KEY:
+        print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada, usando ESPN como fallback.")
+        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": FOOTBALL_API_KEY,
+    }
+
+    try:
+        # 1. Buscar partidos en vivo primero
+        res_live = requests.get(
+            f"{API_FOOTBALL_BASE}/fixtures",
+            params={
+                "league": MUNDIAL_2026_LEAGUE,
+                "season": MUNDIAL_2026_SEASON,
+                "live":   "all",
+            },
+            headers=headers,
+            timeout=8,
+        )
+        fixtures_live = []
+        if res_live.status_code == 200:
+            fixtures_live = res_live.json().get("response", [])
+
+        # 2. Si no hay en vivo, buscar el último finalizado
+        if not fixtures_live:
+            res_fin = requests.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                params={
+                    "league":  MUNDIAL_2026_LEAGUE,
+                    "season":  MUNDIAL_2026_SEASON,
+                    "status":  "FT-AET-PEN",   # Full Time / After Extra Time / Penalties
+                    "last":    1,
+                },
+                headers=headers,
+                timeout=8,
+            )
+            if res_fin.status_code != 200:
+                print(f"[API-FOOTBALL] Error HTTP {res_fin.status_code}")
+                return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+            fixtures_fin = res_fin.json().get("response", [])
+            if not fixtures_fin:
+                print("[API-FOOTBALL] Sin fixtures finalizados.")
+                return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+            fixture_data = fixtures_fin[0]
+            tipo = "finalizado"
+        else:
+            # Tomar el primer partido en vivo
+            fixture_data = fixtures_live[0]
+            tipo = "en_curso"
+
+        # 3. Extraer datos del fixture
+        fix      = fixture_data.get("fixture", {})
+        league   = fixture_data.get("league", {})
+        teams    = fixture_data.get("teams", {})
+        goals    = fixture_data.get("goals", {})
+        score    = fixture_data.get("score", {})
+        events   = fixture_data.get("events", [])   # solo en /fixtures?id=... con events=true
+
+        fixture_id = fix.get("id")
+        fecha      = fix.get("date", "")
+        estadio    = fix.get("venue", {}).get("name", "")
+        ciudad     = fix.get("venue", {}).get("city", "")
+        arbitro    = fix.get("referee", "")
+        ronda      = league.get("round", "")
+
+        home       = teams.get("home", {}).get("name", "")
+        away       = teams.get("away", {}).get("name", "")
+        goles_h    = goals.get("home", "")
+        goles_a    = goals.get("away", "")
+
+        # Penales
+        pen_h = score.get("penalty", {}).get("home")
+        pen_a = score.get("penalty", {}).get("away")
+        penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
+
+        descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
+        clave       = f"Mundial2026_{fixture_id}"
+
+        # Obtener eventos del partido para el contexto (goles, tarjetas)
+        if not events:
+            res_detail = requests.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                params={"id": fixture_id},
+                headers=headers,
+                timeout=8,
+            )
+            if res_detail.status_code == 200:
+                det_list = res_detail.json().get("response", [])
+                if det_list:
+                    events = det_list[0].get("events", [])
+
+        eventos_texto = []
+        for ev in events[:20]:
+            minuto  = ev.get("time", {}).get("elapsed", "")
+            jugador = ev.get("player", {}).get("name", "")
+            detalle = ev.get("detail", "")
+            equipo  = ev.get("team", {}).get("name", "")
+            if jugador and detalle:
+                eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
+
+        eventos_str = "; ".join(eventos_texto) if eventos_texto else ""
+
+        contexto = (
+            f"{descripcion}. Fecha: {fecha}. "
+            f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
+            f"Árbitro: {arbitro}."
+            f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
+        )
+
+        return {
+            "fixture_id": fixture_id,
+            "clave":      clave,
+            "descripcion": descripcion,
+            "tipo":       tipo,
+            "contexto":   contexto,
+        }
+
+    except Exception as e:
+        print(f"[API-FOOTBALL] Excepción: {e}. Fallback a ESPN.")
+        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+
+
+def obtener_jugadores_api_football(fixture_id) -> list:
+    """
+    Obtiene estadísticas de jugadores del partido desde API-Football.
+    Devuelve lista compatible con el formato que espera _generar_preguntas_ia().
+    """
+    if not FOOTBALL_API_KEY:
+        return obtener_jugadores_fixture(fixture_id)
+
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key":  FOOTBALL_API_KEY,
+    }
+    jugadores = []
+    try:
+        res = requests.get(
+            f"{API_FOOTBALL_BASE}/fixtures/players",
+            params={"fixture": fixture_id},
+            headers=headers,
+            timeout=8,
+        )
+        if res.status_code != 200:
+            return obtener_jugadores_fixture(fixture_id)
+
+        for team_block in res.json().get("response", []):
+            for player_data in team_block.get("players", []):
+                info  = player_data.get("player", {})
+                stats = (player_data.get("statistics") or [{}])[0]
+                games = stats.get("games", {})
+                goles = stats.get("goals", {})
+                tiros = stats.get("shots", {})
+                pases = stats.get("passes", {})
+                faltas = stats.get("fouls", {})
+                tarj  = stats.get("cards", {})
+                gk    = stats.get("goalkeeper", {})
+
+                jugadores.append({
+                    "nombre":             info.get("name", ""),
+                    "posicion":           games.get("position", "N/A"),
+                    "minutos":            games.get("minutes", 0),
+                    "calificacion":       games.get("rating", "N/A"),
+                    "goles":              goles.get("total", 0) or 0,
+                    "asistencias":        goles.get("assists", 0) or 0,
+                    "tiros_total":        tiros.get("total", 0) or 0,
+                    "tiros_al_arco":      tiros.get("on", 0) or 0,
+                    "pases_completados":  pases.get("accuracy", "0"),
+                    "faltas_cometidas":   faltas.get("committed", 0) or 0,
+                    "faltas_recibidas":   faltas.get("drawn", 0) or 0,
+                    "tarjetas_amarillas": tarj.get("yellow", 0) or 0,
+                    "tarjetas_rojas":     tarj.get("red", 0) or 0,
+                    "atajadas":           gk.get("saves", 0) or 0,
+                })
+    except Exception as e:
+        print(f"[API-FOOTBALL] Error obteniendo jugadores: {e}")
+        return obtener_jugadores_fixture(fixture_id)
+
+    return jugadores
+
+
+def obtener_ultimo_partido_mundial2026_ESPN_DESUSO() -> dict:
+    """
+    [DESUSO] Obtenía el último partido del Mundial 2026 desde ESPN.
+    Reemplazada por obtener_ultimo_partido_api_football() que usa la API-Football oficial.
+    Se conserva por referencia histórica.
+    """
     try:
         # 1. Definir rango de fechas dinámico
         fecha_inicio = "20260611"
@@ -635,7 +843,7 @@ async def mundial_info():
     ultimo_guardado = obtener_ultimo_del_historial()
     clave_actual = ultimo_guardado.get("clave", "")
 
-    ultimo_partido_espn = obtener_ultimo_partido_mundial2026()
+    ultimo_partido_espn = obtener_ultimo_partido_api_football()
 
     hay_partido_nuevo = bool(
         ultimo_partido_espn and ultimo_partido_espn.get("clave")
@@ -719,7 +927,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
         if not partido_item:
             # No hay historial: intentar obtener el partido desde ESPN automáticamente
             print("[TRIVIAS] No hay historial, consultando ESPN...")
-            partido_espn = obtener_ultimo_partido_mundial2026()
+            partido_espn = obtener_ultimo_partido_api_football()
             if partido_espn:
                 partido_item = upsert_partido_historial(partido_espn)
                 guardar_partido_rag(partido_espn)
@@ -740,7 +948,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
             fixture_id = partido_item.get("fixture_id")
             print(f"[TRIVIAS] Buscando jugadores para fixture_id: {fixture_id}")
             if fixture_id:
-                jugadores = obtener_jugadores_fixture(fixture_id)
+                jugadores = obtener_jugadores_api_football(fixture_id)
                 print(f"[TRIVIAS] Jugadores obtenidos: {len(jugadores)}")
 
             print("[TRIVIAS] Llamando a generar_preguntas...")
