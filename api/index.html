@@ -115,6 +115,17 @@
             background-color: #334155;
             border-color: #475569;
         }
+        /* Estilos añadidos para las respuestas correctas e incorrectas */
+        .btn-option.correct-choice {
+            background-color: rgba(16, 185, 129, 0.2) !important;
+            border-color: var(--success) !important;
+            color: #fff;
+        }
+        .btn-option.incorrect-choice {
+            background-color: rgba(239, 68, 68, 0.2) !important;
+            border-color: var(--error) !important;
+            color: #fff;
+        }
         .feedback {
             padding: 12px;
             border-radius: 8px;
@@ -346,7 +357,6 @@
 <body>
 <div class="container">
 
-    <!-- ① MENU -->
     <div id="scr-menu" class="screen active">
         <h1>⚽ Golazo IA</h1>
         <p>Trivia mundialista impulsada por IA y estadísticas en tiempo real.</p>
@@ -355,7 +365,6 @@
         <button class="btn btn-secondary" onclick="irAHistorial()">📜 Jugar partido anterior</button>
     </div>
 
-    <!-- ②b HISTORIAL DE PARTIDOS -->
     <div id="scr-historial" class="screen">
         <h1>📜 Partidos anteriores</h1>
         <p>Elegí con qué partido querés jugar la trivia.</p>
@@ -366,7 +375,6 @@
         <button class="btn btn-secondary" onclick="volverAlMenu()">← Volver</button>
     </div>
 
-    <!-- ② SALA: crear o unirse -->
     <div id="scr-sala-lobby" class="screen">
         <h1>🏟️ Salas</h1>
         <p>Creá tu sala o unite con un código.</p>
@@ -395,7 +403,6 @@
         <div id="sala-lobby-error" style="color:var(--error);font-size:0.85rem;margin-top:10px;display:none;"></div>
     </div>
 
-    <!-- ③ SALA: esperando jugadores -->
     <div id="scr-sala-espera" class="screen">
         <h1>Sala lista 🎉</h1>
         <p>Compartí este código con tus amigos:</p>
@@ -411,7 +418,6 @@
         <div id="sala-espera-msg" style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;"></div>
     </div>
 
-    <!-- ④ RANKING FINAL DE SALA -->
     <div id="scr-sala-ranking" class="screen">
         <h1>🏆 Ranking de la Sala</h1>
         <div id="sala-ranking-badge" class="sala-info-badge">🏟️ Sala: ------</div>
@@ -439,7 +445,6 @@
         <button class="btn btn-secondary" style="margin-top:8px;" onclick="verRankingTotal()">🏆 RANKING TOTAL del Mundial</button>
     </div>
 
-    <!-- ④b RANKING TOTAL DE SALA (acumulado de todas las trivias) -->
     <div id="scr-sala-ranking-total" class="screen">
         <h1>🏆 Ranking Total</h1>
         <div id="sala-ranking-total-badge" class="sala-info-badge">🏟️ Sala: ------</div>
@@ -461,14 +466,12 @@
         <button class="btn btn-secondary" style="margin-top:8px;" onclick="cambiarPantalla('scr-sala-ranking')">← Volver al ranking de esta trivia</button>
     </div>
 
-    <!-- ② DETECTANDO PARTIDO -->
     <div id="scr-detectando" class="screen">
         <h1>Buscando partido...</h1>
         <div class="loader"></div>
         <p id="detectando-msg">Consultando si hay un Mundial en curso o identificando el último finalizado...</p>
     </div>
 
-    <!-- ③ CONFIRMACION DEL PARTIDO -->
     <div id="scr-partido" class="screen">
         <h1>⚽ Partido detectado</h1>
         <p>Estas preguntas se generarán sobre este partido:</p>
@@ -486,540 +489,6 @@
         <button class="btn btn-secondary" onclick="cambiarPartido()">🔄 Detectar otro partido</button>
     </div>
 
-    <!-- ④ GENERANDO PREGUNTAS -->
     <div id="scr-loading" class="screen">
         <h1>Preparando Trivia...</h1>
-        <div class="loader"></div>
-        <p id="loading-msg">Cargando banco de preguntas RAG...</p>
-    </div>
-
-    <!-- ⑤ QUIZ -->
-    <div id="scr-quiz" class="screen">
-        <div class="scoreboard">
-            <span id="quiz-progress">Pregunta: 0/0</span>
-            <span id="local-score" style="color:var(--success);font-weight:bold;">0 pts</span>
-        </div>
-        <div id="partido-label-quiz" class="partido-label"></div>
-        <h3 id="box-pregunta" style="text-align:left;line-height:1.4;">Cargando...</h3>
-        <div id="container-options" class="options-container"></div>
-        <div id="box-feedback" class="feedback"></div>
-        <button id="btn-next-action" class="btn" style="display:none;" onclick="avanzarPregunta()">Siguiente ➡️</button>
-    </div>
-
-    <!-- ⑥ RESULTADOS -->
-    <div id="scr-results" class="screen">
-        <h1>🏆 ¡Trivia Completada!</h1>
-        <p>Tu puntuación final:</p>
-        <h2 id="box-final-score" style="color:var(--success);font-size:2.5rem;margin:20px 0;">0 pts</h2>
-        <div id="btn-ver-ranking-sala" style="display:none;">
-            <button class="btn" onclick="verRankingSala()">🏟️ Ver ranking de la sala</button>
-        </div>
-        <button class="btn btn-secondary" onclick="volverAlMenu()">Volver al menú 🔄</button>
-    </div>
-
-</div>
-
-<script>
-// ─── Estado global ────────────────────────────────────────────────────────────
-let preguntasPartida   = [];
-let indicePreguntaActual = 0;
-let puntosLocal        = 0;
-let preguntaActualObj  = null;
-let partidoActual      = null;   // { clave, descripcion, tipo, contexto, desde_cache }
-
-// ─── Banco fallback ───────────────────────────────────────────────────────────
-const BANCO_NATIVO = [
-    {"pregunta":"¿Qué resultado tuvo la Final del Mundial Qatar 2022 al final del tiempo reglamentario?","opciones":["Argentina 2-2 Francia","Argentina 3-3 Francia","Argentina 2-0 Francia"],"correcta":"Argentina 3-3 Francia"},
-    {"pregunta":"¿Cuántos goles marcó Kylian Mbappé en la Final de Qatar 2022?","opciones":["1","2","3"],"correcta":"3"},
-    {"pregunta":"¿Quién abrió el marcador en la Final de Qatar 2022?","opciones":["Lionel Messi","Ángel Di María","Julián Álvarez"],"correcta":"Lionel Messi"},
-    {"pregunta":"¿En qué estadio se jugó la Final del Mundial Qatar 2022?","opciones":["Estadio Al Bayt","Estadio Lusail","Estadio Al Thumama"],"correcta":"Estadio Lusail"},
-    {"pregunta":"¿Cómo terminó la tanda de penales en la Final de Qatar 2022?","opciones":["Argentina 4-2 Francia","Argentina 3-2 Francia","Argentina 5-3 Francia"],"correcta":"Argentina 4-2 Francia"},
-    {"pregunta":"¿Quién atajó el penal decisivo en la Final de Qatar 2022?","opciones":["Franco Armani","Emiliano Martínez","Sergio Romero"],"correcta":"Emiliano Martínez"},
-    {"pregunta":"¿Qué jugador convirtió el segundo gol de Argentina en la Final?","opciones":["Ángel Di María","Julián Álvarez","Lionel Messi"],"correcta":"Ángel Di María"},
-    {"pregunta":"¿Cuándo se jugó la Final del Mundial Qatar 2022?","opciones":["11 de diciembre de 2022","18 de diciembre de 2022","25 de diciembre de 2022"],"correcta":"18 de diciembre de 2022"},
-    {"pregunta":"¿Cuántas Copas del Mundo ganó Argentina hasta Qatar 2022?","opciones":["2","3","4"],"correcta":"3"},
-    {"pregunta":"¿Quién fue el árbitro de la Final de Qatar 2022?","opciones":["Szymon Marciniak","Wilton Sampaio","Stéphanie Frappart"],"correcta":"Szymon Marciniak"},
-    {"pregunta":"¿En qué minuto marcó Mbappé su primer gol en la Final de Qatar 2022?","opciones":["Minuto 70","Minuto 80","Minuto 90"],"correcta":"Minuto 80"},
-    {"pregunta":"¿Qué récord personal alcanzó Messi al ganar Qatar 2022?","opciones":["Su primer Balón de Oro","Su primera Copa del Mundo","Su primer gol mundialista"],"correcta":"Su primera Copa del Mundo"}
-];
-
-// ─── Helpers de pantalla ──────────────────────────────────────────────────────
-function cambiarPantalla(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
-}
-
-function volverAlMenu() {
-    cambiarPantalla('scr-menu');
-}
-
-// ─── PASO 1: Arrancar detección de partido ────────────────────────────────────
-async function arrancarDeteccion() {
-    cambiarPantalla('scr-detectando');
-    document.getElementById('detectando-msg').innerText =
-        'Consultando si hay un Mundial en curso o identificando el último finalizado...';
-
-    try {
-        const res = await fetch('/api/mundial-info');
-        if (!res.ok) throw new Error('Error de servidor');
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        partidoActual = data;
-        mostrarConfirmacionPartido(data);
-    } catch (err) {
-        console.error('Error detectando partido:', err);
-        // Fallback: usar Qatar 2022
-        partidoActual = {
-            clave: 'Qatar2022_Final',
-            descripcion: 'Final Qatar 2022: Argentina 3-3 (4-2) Francia',
-            tipo: 'finalizado',
-            contexto: 'Final del Mundial Qatar 2022. Argentina ganó por penales 4-2 tras empatar 3-3.',
-            desde_cache: false
-        };
-        mostrarConfirmacionPartido(partidoActual);
-    }
-}
-
-// ─── PASO 2: Mostrar pantalla de confirmación ─────────────────────────────────
-function mostrarConfirmacionPartido(partido) {
-    const badge = document.getElementById('partido-badge');
-    const nombre = document.getElementById('partido-nombre');
-    const contexto = document.getElementById('partido-contexto');
-    const cacheNote = document.getElementById('cache-note-partido');
-
-    if (partido.tipo === 'en_curso') {
-        badge.className = 'badge badge-en-curso';
-        badge.innerHTML = '<span class="live-dot"></span>EN CURSO';
-    } else {
-        badge.className = 'badge badge-finalizado';
-        badge.innerText = 'FINALIZADO';
-    }
-
-    nombre.innerText = partido.descripcion || partido.clave;
-
-    // Mostrar solo las primeras ~200 chars del contexto como preview
-    const preview = (partido.contexto || '').substring(0, 220);
-    contexto.innerText = preview + (partido.contexto && partido.contexto.length > 220 ? '...' : '');
-
-    if (partido.desde_cache) {
-        cacheNote.style.display = 'flex';
-    } else {
-        cacheNote.style.display = 'none';
-    }
-
-    cambiarPantalla('scr-partido');
-}
-
-// ─── PASO 3a: Confirmar partido → cargar trivia ───────────────────────────────
-async function confirmarPartido() {
-    cambiarPantalla('scr-loading');
-
-    const msg = document.getElementById('loading-msg');
-    if (partidoActual && partidoActual.desde_cache) {
-        msg.innerText = 'Cargando 10 preguntas del banco RAG...';
-    } else {
-        msg.innerText = 'Generando 50 preguntas con IA sobre este partido... (puede tardar unos segundos)';
-    }
-
-    puntosLocal = 0;
-    indicePreguntaActual = 0;
-    document.getElementById('local-score').innerText = '0 pts';
-
-    const clave = partidoActual ? partidoActual.clave : '';
-
-    try {
-        const url = `/api/trivias?clave=${encodeURIComponent(clave)}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Error de servidor');
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-
-        preguntasPartida = (data.preguntas && data.preguntas.length > 0)
-            ? data.preguntas
-            : muestraAleatoria(BANCO_NATIVO, 10);
-
-        // Actualizar clave/descripcion reales del partido (importante para
-        // partidos del historial donde partidoActual venia incompleto)
-        if (data.clave) {
-            partidoActual = partidoActual || {};
-            partidoActual.clave = data.clave;
-        }
-        if (data.partido) {
-            partidoActual.descripcion = data.partido;
-        }
-
-        // Actualizar label del partido en el quiz
-        const label = document.getElementById('partido-label-quiz');
-        if (data.partido) {
-            const icono = data.tipo === 'en_curso' ? '🔴 EN CURSO' : '⚽';
-            label.innerText = `${icono} ${data.partido}`;
-        }
-
-    } catch (err) {
-        console.error('Error cargando trivia:', err);
-        preguntasPartida = atoria(BANCO_NATIVO, 10);
-    }
-
-    cambiarPantalla('scr-quiz');
-    renderizarPreguntaActual();
-}
-
-// ─── PASO 3b: Cambiar partido → limpiar y volver a detectar ──────────────────
-async function cambiarPartido() {
-    cambiarPantalla('scr-detectando');
-    document.getElementById('detectando-msg').innerText =
-        'Forzando nueva detección de partido y limpiando banco de preguntas...';
-
-    try {
-        // Llamar refresh para que el backend limpie el RAG y detecte de nuevo
-        await fetch('/api/trivias?refresh=true&clave=__reset__');
-    } catch (_) {}
-
-    partidoActual = null;
-    await arrancarDeteccion();
-}
-
-// ─── Helpers quiz ─────────────────────────────────────────────────────────────
-function muestraAleatoria(arr, n) {
-    const copia = [...arr]; // Evitamos modificar el arreglo original
-    
-    // Algoritmo de Fisher-Yates
-    for (let i = copia.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [copia[i], copia[j]] = [copia[j], copia[i]]; // Intercambiamos elementos
-    }
-    
-    return copia.slice(0, n);
-}
-
-function renderizarPreguntaActual() {
-    document.getElementById('box-feedback').className = 'feedback';
-    document.getElementById('box-feedback').style.display = 'none';
-    document.getElementById('btn-next-action').style.display = 'none';
-
-    preguntaActualObj = preguntasPartida[indicePreguntaActual];
-    document.getElementById('quiz-progress').innerText =
-        `Pregunta: ${indicePreguntaActual + 1}/${preguntasPartida.length}`;
-    document.getElementById('box-pregunta').innerText = preguntaActualObj.pregunta;
-
-    const container = document.getElementById('container-options');
-    container.innerHTML = '';
-    preguntaActualObj.opciones.forEach(op => {
-        const btn = document.createElement('button');
-        btn.className = 'btn-option';
-        btn.innerText = op;
-        btn.onclick = () => verificarRespuesta(op);
-        container.appendChild(btn);
-    });
-}
-
-function verificarRespuesta(opcion) {
-    document.querySelectorAll('.btn-option').forEach(b => b.disabled = true);
-    const fb = document.getElementById('box-feedback');
-    if (opcion === preguntaActualObj.correcta) {
-        fb.innerText = '¡Correcto! 🚀';
-        fb.className = 'feedback correct';
-        puntosLocal += 10;
-        document.getElementById('local-score').innerText = `${puntosLocal} pts`;
-    } else {
-        fb.innerText = `Incorrecto. La respuesta era: ${preguntaActualObj.correcta}`;
-        fb.className = 'feedback incorrect';
-    }
-    const esUltima = (indicePreguntaActual === preguntasPartida.length - 1);
-    const btnNext = document.getElementById('btn-next-action');
-    btnNext.innerText = esUltima ? 'Ver Resultados 🏁' : 'Siguiente ➡️';
-    btnNext.style.display = 'block';
-}
-
-function avanzarPregunta() {
-    indicePreguntaActual++;
-    if (indicePreguntaActual < preguntasPartida.length) {
-        renderizarPreguntaActual();
-    } else {
-        const respCorrectas = puntosLocal / 10;
-        document.getElementById('box-final-score').innerText = `${puntosLocal} pts`;
-
-        // Si estamos en una sala, guardar resultado y mostrar botón de ranking
-        if (salaActual.codigo) {
-            document.getElementById('btn-ver-ranking-sala').style.display = 'block';
-            guardarResultadoEnSala(puntosLocal, respCorrectas, preguntasPartida.length);
-        }
-
-        cambiarPantalla('scr-results');
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  SALA — estado
-// ═══════════════════════════════════════════════════════════════════════════
-let salaActual = { codigo: '', nombreJugador: '' };
-
-function irASalas() {
-    cambiarPantalla('scr-sala-lobby');
-    document.getElementById('sala-lobby-error').style.display = 'none';
-}
-
-function switchTab(tab) {
-    document.getElementById('tab-crear').classList.toggle('active',  tab === 'crear');
-    document.getElementById('tab-unirse').classList.toggle('active', tab === 'unirse');
-    document.getElementById('panel-crear').classList.toggle('active',  tab === 'crear');
-    document.getElementById('panel-unirse').classList.toggle('active', tab === 'unirse');
-}
-
-function mostrarErrorLobby(msg) {
-    const el = document.getElementById('sala-lobby-error');
-    el.innerText = msg;
-    el.style.display = 'block';
-}
-
-// ─── Crear sala ───────────────────────────────────────────────────────────
-async function crearSala() {
-    const nombre = document.getElementById('input-nombre-crear').value.trim();
-    if (!nombre) { mostrarErrorLobby('Ingresá tu nombre para continuar.'); return; }
-
-    document.getElementById('sala-lobby-error').style.display = 'none';
-
-    try {
-        const res = await fetch('/api/salas/crear', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ nombre_jugador: nombre })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error al crear sala');
-
-        salaActual.codigo        = data.codigo_sala;
-        salaActual.nombreJugador = nombre;
-
-        document.getElementById('codigo-display').innerText = data.codigo_sala;
-        renderizarJugadoresEspera(data.sala.jugadores);
-        cambiarPantalla('scr-sala-espera');
-
-    } catch (err) {
-        mostrarErrorLobby(err.message);
-    }
-}
-
-// ─── Unirse a sala ────────────────────────────────────────────────────────
-async function unirseSala() {
-    const nombre = document.getElementById('input-nombre-unirse').value.trim();
-    const codigo = document.getElementById('input-codigo-unirse').value.trim().toUpperCase();
-    if (!nombre) { mostrarErrorLobby('Ingresá tu nombre.'); return; }
-    if (!codigo) { mostrarErrorLobby('Ingresá el código de la sala.'); return; }
-
-    document.getElementById('sala-lobby-error').style.display = 'none';
-
-    try {
-        const res = await fetch('/api/salas/unirse', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ codigo_sala: codigo, nombre_jugador: nombre })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error al unirse');
-
-        salaActual.codigo        = codigo;
-        salaActual.nombreJugador = nombre;
-
-        document.getElementById('codigo-display').innerText = codigo;
-        renderizarJugadoresEspera(data.sala.jugadores);
-        cambiarPantalla('scr-sala-espera');
-
-    } catch (err) {
-        mostrarErrorLobby(err.message);
-    }
-}
-
-// ─── Render lista de espera ───────────────────────────────────────────────
-function renderizarJugadoresEspera(jugadores) {
-    const ul = document.getElementById('lista-jugadores-espera');
-    ul.innerHTML = jugadores.map(j => `
-        <li>
-            <span>${j.nombre === salaActual.nombreJugador ? '⭐ ' : ''}${j.nombre}</span>
-            <span class="badge-espera">Listo</span>
-        </li>
-    `).join('');
-}
-
-// ─── Arrancar partida desde sala (reutiliza el flujo existente) ───────────
-async function arrancarDesdeSala() {
-    document.getElementById('sala-espera-msg').innerText = 'Iniciando trivia...';
-    // Reutiliza el flujo normal: detectar partido y cargar trivia
-    await arrancarDeteccion();
-}
-
-// ─── Guardar resultado en la sala ─────────────────────────────────────────
-async function guardarResultadoEnSala(puntaje, correctas, total) {
-    try {
-        await fetch('/api/salas/resultado', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                codigo_sala:          salaActual.codigo,
-                nombre_jugador:       salaActual.nombreJugador,
-                puntaje:              puntaje,
-                respuestas_correctas: correctas,
-                total_preguntas:      total,
-                clave_partido:        (partidoActual && partidoActual.clave) ? partidoActual.clave : ''
-            })
-        });
-    } catch (err) {
-        console.error('Error guardando resultado en sala:', err);
-    }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-//  HISTORIAL DE PARTIDOS — jugar con un partido anterior
-// ═══════════════════════════════════════════════════════════════════════════
-async function irAHistorial() {
-    cambiarPantalla('scr-historial');
-    const cont = document.getElementById('historial-lista');
-    const vacio = document.getElementById('historial-vacio');
-    cont.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Cargando...</p>';
-    vacio.style.display = 'none';
-
-    try {
-        const res = await fetch('/api/partidos-historial');
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error al cargar historial');
-
-        const partidos = data.partidos || [];
-        if (partidos.length === 0) {
-            cont.innerHTML = '';
-            vacio.style.display = 'block';
-            return;
-        }
-
-        cont.innerHTML = partidos.map(p => {
-            const badge = p.tipo === 'en_curso'
-                ? '<span class="badge badge-en-curso" style="margin-left:6px;"><span class="live-dot"></span>EN CURSO</span>'
-                : '<span class="badge badge-finalizado" style="margin-left:6px;">FINALIZADO</span>';
-            const ultimoBadge = p.ultimo ? '<span class="badge-ultimo">ÚLTIMO</span>' : '';
-            return `
-                <li class="historial-item" onclick="seleccionarPartidoHistorial('${p.clave.replace(/'/g, "\\'")}')">
-                    <div class="historial-titulo">${p.descripcion || p.clave} ${ultimoBadge}</div>
-                    <div class="historial-meta">${badge}</div>
-                </li>
-            `;
-        }).join('');
-
-    } catch (err) {
-        cont.innerHTML = '';
-        vacio.innerText = 'Error cargando partidos: ' + err.message;
-        vacio.style.display = 'block';
-    }
-}
-
-function seleccionarPartidoHistorial(clave) {
-    // Buscamos los datos completos consultando mundial-info solo si es el
-    // ultimo; para partidos viejos armamos un objeto minimo con la clave
-    // y dejamos que /api/trivias devuelva la descripcion real.
-    partidoActual = { clave: clave, desde_cache: true, tipo: 'finalizado', descripcion: '', contexto: '' };
-    confirmarPartido();
-}
-
-async function verRankingSala() {
-    await refrescarRanking();
-    cambiarPantalla('scr-sala-ranking');
-}
-
-async function refrescarRanking() {
-    if (!salaActual.codigo) return;
-
-    try {
-        const res  = await fetch(`/api/salas/${salaActual.codigo}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error');
-
-        const { leaderboard, jugadores_totales, jugadores_terminaron } = data;
-
-        // Badge con código de sala
-        document.getElementById('sala-ranking-badge').innerHTML =
-            `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
-
-        // Mensaje de posición
-        const posMsg = document.getElementById('sala-posicion-msg');
-        const miPos  = leaderboard.findIndex(
-            j => j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase()
-        );
-        const medallas = ['🥇','🥈','🥉'];
-        if (miPos >= 0) {
-            const medallaTexto = miPos < 3 ? medallas[miPos] : `#${miPos + 1}`;
-            posMsg.innerHTML = `Estás en el puesto <strong>${medallaTexto}</strong> de la sala`;
-        } else {
-            posMsg.innerText = '';
-        }
-
-        // Tabla
-        const tbody = document.getElementById('ranking-tbody');
-        tbody.innerHTML = leaderboard.map((j, i) => {
-            const esYo  = j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase();
-            const medal = i < 3 ? `<span class="pos-medal">${medallas[i]}</span>` : `${i + 1}.`;
-            return `<tr class="${esYo ? 'yo' : ''}">
-                <td>${medal}</td>
-                <td>${j.nombre}${esYo ? ' (vos)' : ''}</td>
-                <td style="text-align:right;color:var(--success);font-weight:bold;">${j.puntaje} pts</td>
-                <td style="text-align:right;color:var(--text-muted);">${j.respuestas_correctas ?? '-'}/${j.total_preguntas ?? '-'}</td>
-            </tr>`;
-        }).join('');
-
-        // Mensaje de espera si no terminaron todos
-        const esperaMsg = document.getElementById('ranking-espera-msg');
-        esperaMsg.style.display =
-            jugadores_terminaron < jugadores_totales ? 'block' : 'none';
-
-    } catch (err) {
-        console.error('Error cargando ranking:', err);
-    }
-}
-
-async function verRankingTotal() {
-    if (!salaActual.codigo) return;
-    cambiarPantalla('scr-sala-ranking-total');
-
-    document.getElementById('sala-ranking-total-badge').innerHTML =
-        `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
-
-    const tbody = document.getElementById('ranking-total-tbody');
-    tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);">Cargando...</td></tr>';
-
-    try {
-        const res = await fetch(`/api/salas/${salaActual.codigo}/ranking-total`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || 'Error');
-
-        const ranking = data.ranking_total || [];
-        const medallas = ['🥇','🥈','🥉'];
-
-        if (ranking.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);">Todavía no hay resultados.</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = ranking.map((j, i) => {
-            const esYo = j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase();
-            const medal = i < 3 ? `<span class="pos-medal">${medallas[i]}</span>` : `${i + 1}.`;
-            return `<tr class="${esYo ? 'yo' : ''}">
-                <td>${medal}</td>
-                <td>${j.nombre}${esYo ? ' (vos)' : ''}</td>
-                <td style="text-align:right;color:var(--success);font-weight:bold;">${j.puntaje_total} pts</td>
-                <td style="text-align:right;color:var(--text-muted);">${j.partidas_jugadas}</td>
-            </tr>`;
-        }).join('');
-
-    } catch (err) {
-        tbody.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error: ${err.message}</td></tr>`;
-    }
-}
-
-function copiarCodigo() {
-    const codigo = document.getElementById('codigo-display').innerText;
-    navigator.clipboard.writeText(codigo).then(() => {
-        const el = document.querySelector('.copy-hint');
-        el.innerText = '✅ ¡Copiado!';
-        setTimeout(() => { el.innerText = 'Tocá para copiar'; }, 2000);
-    });
-}
-</script>
-</body>
-</html>
+        <div class="loader">
