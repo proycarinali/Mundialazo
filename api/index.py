@@ -565,7 +565,7 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     if grok_client:
         intentos.append((grok_client, "llama-3.3-70b-versatile", "Groq"))
     if gemini_client:
-        intentos.append((gemini_client, "gemini-1.5-flash", "Gemini"))
+        intentos.append((gemini_client, "gemini-2.5-flash", "Gemini"))
 
     for client, model, nombre in intentos:
         try:
