@@ -486,12 +486,16 @@ def detectar_partido_mundial_con_ia() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     if not grok_client:
+        print("[IA] ERROR: grok_client no está configurado (GROK_API_KEY falta o es inválida)")
         return []
- 
+
+    print(f"[IA] Iniciando generación de preguntas para: {partido_info.get('clave', 'sin clave')}")
     contexto_partido = partido_info.get("contexto", partido_info.get("descripcion", ""))
     tipo = partido_info.get("tipo", "finalizado")
- 
+    print(f"[IA] Contexto del partido ({len(contexto_partido)} chars): {contexto_partido[:200]}...")
+
     if jugadores:
+        print(f"[IA] Jugadores recibidos: {len(jugadores)}")
         jugadores_compactos = []
         for j in jugadores[:22]:
             jugadores_compactos.append({
@@ -507,10 +511,11 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
             f"\n\nEstadísticas reales de jugadores del partido:\n{json.dumps(jugadores_compactos, ensure_ascii=False)}"
         )
     else:
+        print("[IA] Sin jugadores — se generarán preguntas solo con contexto del partido")
         contexto_jugadores = ""
- 
+
     estado = "en curso" if tipo == "en_curso" else "ya finalizado"
- 
+
     prompt = (
         "A continuación tenés datos OFICIALES extraídos en tiempo real desde la API de ESPN "
         f"sobre un partido ({estado}) del Mundial 2026. Estos son los ÚNICOS datos válidos: "
@@ -530,8 +535,9 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
         "Formato de salida SOLO JSON sin texto adicional ni backticks:\n"
         "{\"preguntas\": [{\"pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}]}"
     )
- 
+
     try:
+        print("[IA] Llamando a Groq API...")
         response = grok_client.chat.completions.create(
             model = "llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}],
@@ -539,9 +545,10 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
             timeout=45,
         )
         raw = response.choices[0].message.content
+        print(f"[IA] Groq respondió OK ({len(raw)} chars)")
         texto = raw.replace("```json", "").replace("```", "").strip()
     except Exception as e:
-        print(f"[ERROR] Groq API falló al generar preguntas: {e}")
+        print(f"[IA] ERROR: Groq API falló — {type(e).__name__}: {e}")
         return []
 
     try:
@@ -688,18 +695,24 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
             return {"error": "No hay partido disponible. Consultá /api/mundial-info primero."}
 
     banco = [] if refresh else partido_item.get("preguntas", [])
+    print(f"[TRIVIAS] Partido: {partido_item.get('clave')} | preguntas en banco: {len(banco)} | refresh: {refresh}")
 
     if not banco:
         if not grok_client:
+            print("[TRIVIAS] ERROR: GROK_API_KEY no configurada")
             return {"error": "GROK_API_KEY no configurada"}
         try:
             jugadores = []
             fixture_id = partido_item.get("fixture_id")
+            print(f"[TRIVIAS] Buscando jugadores para fixture_id: {fixture_id}")
             if fixture_id:
                 jugadores = obtener_jugadores_fixture(fixture_id)
+                print(f"[TRIVIAS] Jugadores obtenidos: {len(jugadores)}")
 
+            print("[TRIVIAS] Llamando a generar_preguntas...")
             loop = asyncio.get_event_loop()
             banco = await loop.run_in_executor(None, generar_preguntas, partido_item, jugadores)
+            print(f"[TRIVIAS] Preguntas generadas: {len(banco)}")
             if banco:
                 guardar_preguntas_partido_historial(partido_item.get("clave", ""), banco)
                 # Mantener compatibilidad con cache simple si es el ultimo
