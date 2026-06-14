@@ -531,14 +531,18 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
         "{\"preguntas\": [{\"pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}]}"
     )
  
-    response = grok_client.chat.completions.create(
-        model = "llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=7000,
-        timeout=45,
-    )
-    raw = response.choices[0].message.content
-    texto = raw.replace("```json", "").replace("```", "").strip()
+    try:
+        response = grok_client.chat.completions.create(
+            model = "llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=7000,
+            timeout=45,
+        )
+        raw = response.choices[0].message.content
+        texto = raw.replace("```json", "").replace("```", "").strip()
+    except Exception as e:
+        print(f"[ERROR] Groq API falló al generar preguntas: {e}")
+        return []
 
     try:
         parsed = json.loads(texto)
@@ -607,9 +611,16 @@ async def mundial_info():
     )
 
     if hay_partido_nuevo or not ultimo_guardado:
-        nuevo_partido = ultimo_partido_espn if ultimo_partido_espn else (
-            ultimo_guardado if ultimo_guardado else detectar_partido_mundial_con_ia()
-        )
+        # Solo usamos ESPN para detectar partidos. Si ESPN no responde y no hay
+        # historial previo, devolvemos error en lugar de llamar a la IA (que no
+        # tiene datos reales del partido).
+        if ultimo_partido_espn:
+            nuevo_partido = ultimo_partido_espn
+        elif ultimo_guardado:
+            # No hay partido nuevo en ESPN, quedarse con el del historial
+            return {**ultimo_guardado, "desde_cache": True, "partido_nuevo_detectado": False}
+        else:
+            return {"error": "No se pudo obtener información del partido desde ESPN."}
 
         item = upsert_partido_historial(nuevo_partido)
 
@@ -673,10 +684,8 @@ async def obtener_trivias(clave: str = "", refresh: bool = False):
     else:
         partido_item = obtener_ultimo_del_historial()
         if not partido_item:
-            nuevo = detectar_partido_mundial_con_ia()
-            partido_item = upsert_partido_historial(nuevo)
-            guardar_partido_rag(nuevo)
-            refresh = True
+            # No hay historial: pedirle al cliente que llame primero a /api/mundial-info
+            return {"error": "No hay partido disponible. Consultá /api/mundial-info primero."}
 
     banco = [] if refresh else partido_item.get("preguntas", [])
 
