@@ -342,32 +342,7 @@
             margin-left: 6px;
         }
 
-        /* ── Selector de deporte ── */
-        .deporte-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            margin: 20px 0;
-        }
-        .deporte-card {
-            background: #1e293b;
-            border: 2px solid #334155;
-            border-radius: 14px;
-            padding: 22px 16px;
-            cursor: pointer;
-            transition: all 0.2s;
-            text-align: center;
-        }
-        .deporte-card:hover {
-            border-color: var(--primary);
-            background: rgba(37,99,235,0.12);
-            transform: translateY(-2px);
-        }
-        .deporte-card .deporte-icon { font-size: 2.4rem; display: block; margin-bottom: 8px; }
-        .deporte-card .deporte-nombre { font-weight: bold; font-size: 1rem; color: var(--text); }
-        .deporte-card .deporte-sub { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
-
-        /* ── Selector de liga ── */
+        /* ── Selector de liga dinámico ── */
         .liga-lista {
             list-style: none;
             padding: 0;
@@ -384,6 +359,7 @@
             margin-bottom: 8px;
             cursor: pointer;
             transition: all 0.18s;
+            text-align: left;
         }
         .liga-item:hover {
             border-color: var(--primary);
@@ -404,7 +380,6 @@
 <body>
 <div class="container">
 
-    <!-- ① MENU PRINCIPAL -->
     <div id="scr-menu" class="screen active">
         <h1>⚽ Golazo IA</h1>
         <p>Trivia futbolera impulsada por IA y estadísticas en tiempo real.</p>
@@ -412,16 +387,16 @@
         <button class="btn btn-secondary" onclick="irASalas()">🏟️ Jugar en Sala</button>
         <button class="btn btn-secondary" onclick="irAHistorial()">📜 Jugar partido anterior</button>
     </div>
+    
     <div id="scr-ligas" class="screen">
         <h1>⚽ Elegí la liga</h1>
-        <p id="ligas-subtitle">No hay Mundial activo. ¿De qué liga querés jugar?</p>
+        <p id="ligas-subtitle">Cargando ligas disponibles...</p>
         <div class="loader" id="ligas-loader"></div>
         <ul id="ligas-lista" class="liga-lista" style="display:none;"></ul>
         <div id="ligas-error" style="display:none;color:var(--error);font-size:0.85rem;margin:12px 0;"></div>
-        <button class="btn btn-secondary" onclick="cambiarPantalla('scr-deporte')">← Volver</button>
+        <button class="btn btn-secondary" onclick="volverAlMenu()">← Volver</button>
     </div>
 
-    <!-- ②b HISTORIAL DE PARTIDOS -->
     <div id="scr-historial" class="screen">
         <h1>📜 Partidos anteriores</h1>
         <p>Elegí con qué partido querés jugar la trivia.</p>
@@ -432,7 +407,6 @@
         <button class="btn btn-secondary" onclick="volverAlMenu()">← Volver</button>
     </div>
 
-    <!-- ② SALA: crear o unirse -->
     <div id="scr-sala-lobby" class="screen">
         <h1>🏟️ Salas</h1>
         <p>Creá tu sala o unite con un código.</p>
@@ -461,7 +435,6 @@
         <div id="sala-lobby-error" style="color:var(--error);font-size:0.85rem;margin-top:10px;display:none;"></div>
     </div>
 
-    <!-- ③ SALA: esperando jugadores -->
     <div id="scr-sala-espera" class="screen">
         <h1>Sala lista 🎉</h1>
         <p>Compartí este código con tus amigos:</p>
@@ -477,7 +450,6 @@
         <div id="sala-espera-msg" style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;"></div>
     </div>
 
-    <!-- ④ RANKING FINAL DE SALA -->
     <div id="scr-sala-ranking" class="screen">
         <h1>🏆 Ranking de la Sala</h1>
         <div id="sala-ranking-badge" class="sala-info-badge">🏟️ Sala: ------</div>
@@ -502,14 +474,13 @@
 
         <button class="btn" onclick="volverAlMenu()">Volver al menú 🏠</button>
         <button class="btn btn-secondary" style="margin-top:8px;" onclick="refrescarRanking()">🔄 Actualizar ranking</button>
-        <button class="btn btn-secondary" style="margin-top:8px;" onclick="verRankingTotal()">🏆 RANKING TOTAL del Mundial</button>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="verRankingTotal()">🏆 RANKING TOTAL</button>
     </div>
 
-    <!-- ④b RANKING TOTAL DE SALA (acumulado de todas las trivias) -->
     <div id="scr-sala-ranking-total" class="screen">
         <h1>🏆 Ranking Total</h1>
         <div id="sala-ranking-total-badge" class="sala-info-badge">🏟️ Sala: ------</div>
-        <p style="font-size:0.85rem;">Suma de puntos de todas las trivias jugadas en esta sala durante el Mundial.</p>
+        <p style="font-size:0.85rem;">Suma de puntos de todas las trivias jugadas en esta sala.</p>
 
         <table class="ranking-tabla">
             <thead>
@@ -527,14 +498,12 @@
         <button class="btn btn-secondary" style="margin-top:8px;" onclick="cambiarPantalla('scr-sala-ranking')">← Volver al ranking de esta trivia</button>
     </div>
 
-    <!-- ② DETECTANDO PARTIDO -->
     <div id="scr-detectando" class="screen">
         <h1>Buscando partido...</h1>
         <div class="loader"></div>
-        <p id="detectando-msg">Consultando si hay un Mundial en curso o identificando el último finalizado...</p>
+        <p id="detectando-msg">Consultando partidos en vivo o identificando el último finalizado...</p>
     </div>
 
-    <!-- ③ CONFIRMACION DEL PARTIDO -->
     <div id="scr-partido" class="screen">
         <h1>⚽ Partido detectado</h1>
         <p>Estas preguntas se generarán sobre este partido:</p>
@@ -552,14 +521,12 @@
         <button class="btn btn-secondary" onclick="cambiarPartido()">🔄 Detectar otro partido</button>
     </div>
 
-    <!-- ④ GENERANDO PREGUNTAS -->
     <div id="scr-loading" class="screen">
         <h1>Preparando Trivia...</h1>
         <div class="loader"></div>
         <p id="loading-msg">Cargando banco de preguntas RAG...</p>
     </div>
 
-    <!-- ⑤ QUIZ -->
     <div id="scr-quiz" class="screen">
         <div class="scoreboard">
             <span id="quiz-progress">Pregunta: 0/0</span>
@@ -572,7 +539,6 @@
         <button id="btn-next-action" class="btn" style="display:none;" onclick="avanzarPregunta()">Siguiente ➡️</button>
     </div>
 
-    <!-- ⑥ RESULTADOS -->
     <div id="scr-results" class="screen">
         <h1>🏆 ¡Trivia Completada!</h1>
         <p>Tu puntuación final:</p>
@@ -590,46 +556,35 @@
 function playSound(tipo) {
     try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
-
         if (tipo === 'correcto') {
-            // Sonido de gol / festejo: acorde ascendente festivo
-            const notas = [523.25, 659.25, 783.99, 1046.50]; // C5 E5 G5 C6
+            const notas = [523.25, 659.25, 783.99, 1046.50];
             notas.forEach((freq, i) => {
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
-                osc.connect(gain);
-                gain.connect(ctx.destination);
+                osc.connect(gain); gain.connect(ctx.destination);
                 osc.type = 'triangle';
                 osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.1);
                 gain.gain.setValueAtTime(0.35, ctx.currentTime + i * 0.1);
                 gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.4);
-                osc.start(ctx.currentTime + i * 0.1);
-                osc.stop(ctx.currentTime + i * 0.1 + 0.45);
+                osc.start(ctx.currentTime + i * 0.1); osc.stop(ctx.currentTime + i * 0.1 + 0.45);
             });
-            // Efecto de multitud / campanada extra
             setTimeout(() => {
                 const osc2 = ctx.createOscillator();
                 const gain2 = ctx.createGain();
-                osc2.connect(gain2);
-                gain2.connect(ctx.destination);
+                osc2.connect(gain2); gain2.connect(ctx.destination);
                 osc2.type = 'sine';
                 osc2.frequency.setValueAtTime(1046.50, ctx.currentTime);
                 osc2.frequency.exponentialRampToValueAtTime(1318.51, ctx.currentTime + 0.15);
                 gain2.gain.setValueAtTime(0.4, ctx.currentTime);
                 gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.6);
-                osc2.start(ctx.currentTime);
-                osc2.stop(ctx.currentTime + 0.65);
+                osc2.start(ctx.currentTime); osc2.stop(ctx.currentTime + 0.65);
             }, 400);
         } else {
-            // Sonido de error: tono descendente disonante
-            const osc1 = ctx.createOscillator();
-            const osc2 = ctx.createOscillator();
-            const gain1 = ctx.createGain();
-            const gain2 = ctx.createGain();
+            const osc1 = ctx.createOscillator(); const osc2 = ctx.createOscillator();
+            const gain1 = ctx.createGain();       const gain2 = ctx.createGain();
             osc1.connect(gain1); gain1.connect(ctx.destination);
             osc2.connect(gain2); gain2.connect(ctx.destination);
-            osc1.type = 'sawtooth';
-            osc2.type = 'sawtooth';
+            osc1.type = 'sawtooth'; osc2.type = 'sawtooth';
             osc1.frequency.setValueAtTime(220, ctx.currentTime);
             osc1.frequency.exponentialRampToValueAtTime(110, ctx.currentTime + 0.4);
             osc2.frequency.setValueAtTime(233, ctx.currentTime);
@@ -641,7 +596,7 @@ function playSound(tipo) {
             osc1.start(ctx.currentTime); osc1.stop(ctx.currentTime + 0.55);
             osc2.start(ctx.currentTime); osc2.stop(ctx.currentTime + 0.55);
         }
-    } catch(e) { /* silently ignore if no audio support */ }
+    } catch(e) {}
 }
 
 // ─── Estado global ────────────────────────────────────────────────────────────
@@ -649,8 +604,9 @@ let preguntasPartida   = [];
 let indicePreguntaActual = 0;
 let puntosLocal        = 0;
 let preguntaActualObj  = null;
-let partidoActual      = null;   // { clave, descripcion, tipo, contexto, desde_cache }
-let ligaSeleccionada   = null;   // { id, nombre, espn_slug } | null
+let partidoActual      = null;   
+let ligaSeleccionada   = null;   
+let salaActual         = { codigo: '', nombreJugador: '' };
 
 // ─── Banco fallback ───────────────────────────────────────────────────────────
 const BANCO_NATIVO = [
@@ -659,13 +615,7 @@ const BANCO_NATIVO = [
     {"pregunta":"¿Quién abrió el marcador en la Final de Qatar 2022?","opciones":["Lionel Messi","Ángel Di María","Julián Álvarez"],"correcta":"Lionel Messi"},
     {"pregunta":"¿En qué estadio se jugó la Final del Mundial Qatar 2022?","opciones":["Estadio Al Bayt","Estadio Lusail","Estadio Al Thumama"],"correcta":"Estadio Lusail"},
     {"pregunta":"¿Cómo terminó la tanda de penales en la Final de Qatar 2022?","opciones":["Argentina 4-2 Francia","Argentina 3-2 Francia","Argentina 5-3 Francia"],"correcta":"Argentina 4-2 Francia"},
-    {"pregunta":"¿Quién atajó el penal decisivo en la Final de Qatar 2022?","opciones":["Franco Armani","Emiliano Martínez","Sergio Romero"],"correcta":"Emiliano Martínez"},
-    {"pregunta":"¿Qué jugador convirtió el segundo gol de Argentina en la Final?","opciones":["Ángel Di María","Julián Álvarez","Lionel Messi"],"correcta":"Ángel Di María"},
-    {"pregunta":"¿Cuándo se jugó la Final del Mundial Qatar 2022?","opciones":["11 de diciembre de 2022","18 de diciembre de 2022","25 de diciembre de 2022"],"correcta":"18 de diciembre de 2022"},
-    {"pregunta":"¿Cuántas Copas del Mundo ganó Argentina hasta Qatar 2022?","opciones":["2","3","4"],"correcta":"3"},
-    {"pregunta":"¿Quién fue el árbitro de la Final de Qatar 2022?","opciones":["Szymon Marciniak","Wilton Sampaio","Stéphanie Frappart"],"correcta":"Szymon Marciniak"},
-    {"pregunta":"¿En qué minuto marcó Mbappé su primer gol en la Final de Qatar 2022?","opciones":["Minuto 70","Minuto 80","Minuto 90"],"correcta":"Minuto 80"},
-    {"pregunta":"¿Qué récord personal alcanzó Messi al ganar Qatar 2022?","opciones":["Su primer Balón de Oro","Su primera Copa del Mundo","Su primer gol mundialista"],"correcta":"Su primera Copa del Mundo"}
+    {"pregunta":"¿Quién atajó el penal decisivo en la Final de Qatar 2022?","opciones":["Franco Armani","Emiliano Martínez","Sergio Romero"],"correcta":"Emiliano Martínez"}
 ];
 
 // ─── Helpers de pantalla ──────────────────────────────────────────────────────
@@ -678,90 +628,80 @@ function volverAlMenu() {
     cambiarPantalla('scr-menu');
 }
 
-// ─── SELECTOR DE LIGA (cuando no hay Mundial) ─────────────────────────────────
-async function mostrarSelectorLigas() {
+// ─── PASO 1: Carga y detección dinámica de Ligas ──────────────────────────────
+async function arrancarDeteccion() {
     cambiarPantalla('scr-ligas');
+    
     const loader = document.getElementById('ligas-loader');
-    const lista  = document.getElementById('ligas-lista');
-    const error  = document.getElementById('ligas-error');
+    const listaUl  = document.getElementById('ligas-lista');
+    const subtitle = document.getElementById('ligas-subtitle');
+    const errorDiv  = document.getElementById('ligas-error');
 
     loader.style.display = 'block';
-    lista.style.display = 'none';
-    error.style.display = 'none';
+    listaUl.style.display = 'none';
+    errorDiv.style.display = 'none';
+    subtitle.innerText = "Consultando ligas activas con estadísticas de tiempo real...";
 
     try {
-        const res = await fetch('/api/ligas-activas');
+        const res = await fetch('/api/ligas-disponibles');
+        if (!res.ok) throw new Error('Error al conectar con el servidor de ligas');
         const data = await res.json();
+        
         loader.style.display = 'none';
+
+        if (data.mundial_activo) {
+            subtitle.innerHTML = "🔥 ¡El Mundial de Fútbol está activo! Elegí el Mundial prioritario o jugá otra liga disponible:";
+        } else {
+            subtitle.innerHTML = "No hay Mundial con partidos en vivo hoy. Seleccioná una de las ligas activas de la API:";
+        }
 
         const ligas = data.ligas || [];
         if (ligas.length === 0) {
-            error.innerText = 'No se encontraron ligas con partidos recientes.';
-            error.style.display = 'block';
+            errorDiv.innerText = 'No se encontraron ligas disponibles en la API de fútbol.';
+            errorDiv.style.display = 'block';
             return;
         }
 
-        lista.innerHTML = ligas.map(liga => `
-            <li class="liga-item" onclick="seleccionarLiga(${liga.id}, '${liga.espn_slug}', '${liga.nombre}')">
+        listaUl.innerHTML = ligas.map(liga => `
+            <li class="liga-item" onclick="seleccionarLiga(${liga.id}, '${liga.nombre}')">
                 <div class="liga-info">
-                    <span class="liga-nombre">${liga.nombre}</span>
+                    <span class="liga-nombre">⚽ ${liga.nombre}</span>
                     <span class="liga-pais">${liga.pais}</span>
                 </div>
-                <span class="liga-badge">${liga.partidos_recientes} partidos</span>
+                <span class="liga-badge">${liga.badge}</span>
             </li>
         `).join('');
-        lista.style.display = 'block';
+        listaUl.style.display = 'block';
 
     } catch (err) {
         loader.style.display = 'none';
-        error.innerText = 'Error cargando ligas: ' + err.message;
-        error.style.display = 'block';
+        errorDiv.innerText = 'Error cargando el menú dinámico de ligas: ' + err.message;
+        errorDiv.style.display = 'block';
     }
 }
 
-async function seleccionarLiga(ligaId, ligaSlug, ligaNombre) {
-    ligaSeleccionada = { id: ligaId, espn_slug: ligaSlug, nombre: ligaNombre };
+async function seleccionarLiga(ligaId, ligaNombre) {
+    ligaSeleccionada = { id: ligaId, nombre: ligaNombre };
     cambiarPantalla('scr-detectando');
-    document.getElementById('detectando-msg').innerText = `Buscando último partido de ${ligaNombre}...`;
+    document.getElementById('detectando-msg').innerText = `Buscando último partido disponible de ${ligaNombre}...`;
 
     try {
-        const res = await fetch(`/api/deporte-info?deporte=futbol&liga_slug=${ligaSlug}&liga_id=${ligaId}`);
-        if (!res.ok) throw new Error('Error de servidor');
+        const res = await fetch(`/api/mundial-info?liga_id=${ligaId}`); 
+        if (!res.ok) throw new Error('Error obteniendo el fixture');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         partidoActual = data;
         mostrarConfirmacionPartido(data);
     } catch (err) {
-        console.error('Error cargando liga:', err);
+        console.error('Error cargando partido de liga:', err);
         partidoActual = {
-            clave: 'fallback_liga',
-            descripcion: `Último partido de ${ligaNombre}`,
+            clave: `Liga_${ligaId}_Partido`,
+            descripcion: `Último encuentro disputado en ${ligaNombre}`,
             tipo: 'finalizado',
-            contexto: '',
-            desde_cache: false,
+            contexto: `Trivia de preguntas sobre estadísticas y eventos recientes de la competición ${ligaNombre}.`,
+            desde_cache: false
         };
         mostrarConfirmacionPartido(partidoActual);
-    }
-}
-
-// ─── PASO 1: Arrancar detección de partido ────────────────────────────────────
-async function arrancarDeteccion() {
-    cambiarPantalla('scr-detectando');
-    ligaSeleccionada = null;
-    document.getElementById('detectando-msg').innerText =
-        'Verificando si hay un partido del Mundial 2026 en curso...';
-
-    try {
-        const res = await fetch('/api/deporte-info?deporte=futbol');
-        if (!res.ok) throw new Error('Error de servidor');
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        partidoActual = data;
-        mostrarConfirmacionPartido(data);
-    } catch (err) {
-        console.error('Error detectando partido:', err);
-        // No hay Mundial → mostrar ligas activas
-        await mostrarSelectorLigas();
     }
 }
 
@@ -797,18 +737,17 @@ function mostrarConfirmacionPartido(partido) {
 // ─── PASO 3a: Confirmar partido → cargar trivia ───────────────────────────────
 async function confirmarPartido() {
     cambiarPantalla('scr-loading');
-
     const msg = document.getElementById('loading-msg');
+    
     if (partidoActual && partidoActual.desde_cache) {
-        msg.innerText = 'Cargando 10 preguntas del banco RAG...';
+        msg.innerText = 'Cargando preguntas del banco RAG...';
     } else {
-        msg.innerText = 'Generando 50 preguntas con IA sobre este partido... (puede tardar unos segundos)';
+        msg.innerText = 'Generando preguntas con IA sobre este partido...';
     }
 
     puntosLocal = 0;
     indicePreguntaActual = 0;
     document.getElementById('local-score').innerText = '0 pts';
-
     const clave = partidoActual ? partidoActual.clave : '';
 
     try {
@@ -820,10 +759,8 @@ async function confirmarPartido() {
 
         preguntasPartida = (data.preguntas && data.preguntas.length > 0)
             ? data.preguntas
-            : muestraAleatoria(BANCO_NATIVO, 10);
+            : muestraAleatoria(BANCO_NATIVO, 6);
 
-        // Actualizar clave/descripcion reales del partido (importante para
-        // partidos del historial donde partidoActual venia incompleto)
         if (data.clave) {
             partidoActual = partidoActual || {};
             partidoActual.clave = data.clave;
@@ -832,7 +769,6 @@ async function confirmarPartido() {
             partidoActual.descripcion = data.partido;
         }
 
-        // Actualizar label del partido en el quiz
         const label = document.getElementById('partido-label-quiz');
         if (data.partido) {
             const icono = data.tipo === 'en_curso' ? '🔴 EN CURSO' : '⚽';
@@ -841,7 +777,7 @@ async function confirmarPartido() {
 
     } catch (err) {
         console.error('Error cargando trivia:', err);
-        preguntasPartida = atoria(BANCO_NATIVO, 10);
+        preguntasPartida = muestraAleatoria(BANCO_NATIVO, 6);
     }
 
     cambiarPantalla('scr-quiz');
@@ -852,23 +788,16 @@ async function confirmarPartido() {
 async function cambiarPartido() {
     try { await fetch('/api/trivias?refresh=true&clave=__reset__'); } catch (_) {}
     partidoActual = null;
-    if (ligaSeleccionada) {
-        await mostrarSelectorLigas();
-    } else {
-        await arrancarDeteccion();
-    }
+    await arrancarDeteccion();
 }
 
 // ─── Helpers quiz ─────────────────────────────────────────────────────────────
 function muestraAleatoria(arr, n) {
-    const copia = [...arr]; // Evitamos modificar el arreglo original
-    
-    // Algoritmo de Fisher-Yates
+    const copia = [...arr];
     for (let i = copia.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [copia[i], copia[j]] = [copia[j], copia[i]]; // Intercambiamos elementos
+        [copia[i], copia[j]] = [copia[j], copia[i]];
     }
-    
     return copia.slice(0, n);
 }
 
@@ -899,7 +828,6 @@ function verificarRespuesta(opcion) {
     const fb = document.getElementById('box-feedback');
 
     if (opcion === preguntaActualObj.correcta) {
-        // Colorear en verde el botón elegido (correcto)
         botones.forEach(b => {
             if (b.innerText === opcion) {
                 b.style.background = 'rgba(16,185,129,0.25)';
@@ -914,7 +842,6 @@ function verificarRespuesta(opcion) {
         document.getElementById('local-score').innerText = `${puntosLocal} pts`;
         playSound('correcto');
     } else {
-        // Colorear en rojo el botón elegido y en verde la correcta
         botones.forEach(b => {
             if (b.innerText === opcion) {
                 b.style.background = 'rgba(239,68,68,0.25)';
@@ -946,7 +873,6 @@ function avanzarPregunta() {
         const respCorrectas = puntosLocal / 10;
         document.getElementById('box-final-score').innerText = `${puntosLocal} pts`;
 
-        // Si estamos en una sala, guardar resultado y mostrar botón de ranking
         if (salaActual.codigo) {
             document.getElementById('btn-ver-ranking-sala').style.display = 'block';
             guardarResultadoEnSala(puntosLocal, respCorrectas, preguntasPartida.length);
@@ -956,11 +882,7 @@ function avanzarPregunta() {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  SALA — estado
-// ═══════════════════════════════════════════════════════════════════════════
-let salaActual = { codigo: '', nombreJugador: '' };
-
+// ─── SALAS ────────────────────────────────────────────────────────────────────
 function irASalas() {
     cambiarPantalla('scr-sala-lobby');
     document.getElementById('sala-lobby-error').style.display = 'none';
@@ -979,11 +901,9 @@ function mostrarErrorLobby(msg) {
     el.style.display = 'block';
 }
 
-// ─── Crear sala ───────────────────────────────────────────────────────────
 async function crearSala() {
     const nombre = document.getElementById('input-nombre-crear').value.trim();
     if (!nombre) { mostrarErrorLobby('Ingresá tu nombre para continuar.'); return; }
-
     document.getElementById('sala-lobby-error').style.display = 'none';
 
     try {
@@ -1001,19 +921,16 @@ async function crearSala() {
         document.getElementById('codigo-display').innerText = data.codigo_sala;
         renderizarJugadoresEspera(data.sala.jugadores);
         cambiarPantalla('scr-sala-espera');
-
     } catch (err) {
         mostrarErrorLobby(err.message);
     }
 }
 
-// ─── Unirse a sala ────────────────────────────────────────────────────────
 async function unirseSala() {
     const nombre = document.getElementById('input-nombre-unirse').value.trim();
     const codigo = document.getElementById('input-codigo-unirse').value.trim().toUpperCase();
     if (!nombre) { mostrarErrorLobby('Ingresá tu nombre.'); return; }
     if (!codigo) { mostrarErrorLobby('Ingresá el código de la sala.'); return; }
-
     document.getElementById('sala-lobby-error').style.display = 'none';
 
     try {
@@ -1031,13 +948,11 @@ async function unirseSala() {
         document.getElementById('codigo-display').innerText = codigo;
         renderizarJugadoresEspera(data.sala.jugadores);
         cambiarPantalla('scr-sala-espera');
-
     } catch (err) {
         mostrarErrorLobby(err.message);
     }
 }
 
-// ─── Render lista de espera ───────────────────────────────────────────────
 function renderizarJugadoresEspera(jugadores) {
     const ul = document.getElementById('lista-jugadores-espera');
     ul.innerHTML = jugadores.map(j => `
@@ -1048,14 +963,11 @@ function renderizarJugadoresEspera(jugadores) {
     `).join('');
 }
 
-// ─── Arrancar partida desde sala (reutiliza el flujo existente) ───────────
 async function arrancarDesdeSala() {
-    document.getElementById('sala-espera-msg').innerText = 'Iniciando trivia...';
-    // Reutiliza el flujo normal: detectar partido y cargar trivia
+    document.getElementById('sala-espera-msg').innerText = 'Iniciando juego...';
     await arrancarDeteccion();
 }
 
-// ─── Guardar resultado en la sala ─────────────────────────────────────────
 async function guardarResultadoEnSala(puntaje, correctas, total) {
     try {
         await fetch('/api/salas/resultado', {
@@ -1075,9 +987,7 @@ async function guardarResultadoEnSala(puntaje, correctas, total) {
     }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  HISTORIAL DE PARTIDOS — jugar con un partido anterior
-// ═══════════════════════════════════════════════════════════════════════════
+// ─── HISTORIAL DE PARTIDOS ────────────────────────────────────────────────────
 async function irAHistorial() {
     cambiarPantalla('scr-historial');
     const cont = document.getElementById('historial-lista');
@@ -1109,7 +1019,6 @@ async function irAHistorial() {
                 </li>
             `;
         }).join('');
-
     } catch (err) {
         cont.innerHTML = '';
         vacio.innerText = 'Error cargando partidos: ' + err.message;
@@ -1118,9 +1027,6 @@ async function irAHistorial() {
 }
 
 function seleccionarPartidoHistorial(clave) {
-    // Buscamos los datos completos consultando mundial-info solo si es el
-    // ultimo; para partidos viejos armamos un objeto minimo con la clave
-    // y dejamos que /api/trivias devuelva la descripcion real.
     partidoActual = { clave: clave, desde_cache: true, tipo: 'finalizado', descripcion: '', contexto: '' };
     confirmarPartido();
 }
@@ -1139,16 +1045,10 @@ async function refrescarRanking() {
         if (!res.ok) throw new Error(data.detail || 'Error');
 
         const { leaderboard, jugadores_totales, jugadores_terminaron } = data;
+        document.getElementById('sala-ranking-badge').innerHTML = `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
 
-        // Badge con código de sala
-        document.getElementById('sala-ranking-badge').innerHTML =
-            `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
-
-        // Mensaje de posición
         const posMsg = document.getElementById('sala-posicion-msg');
-        const miPos  = leaderboard.findIndex(
-            j => j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase()
-        );
+        const miPos  = leaderboard.findIndex(j => j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase());
         const medallas = ['🥇','🥈','🥉'];
         if (miPos >= 0) {
             const medallaTexto = miPos < 3 ? medallas[miPos] : `#${miPos + 1}`;
@@ -1157,7 +1057,6 @@ async function refrescarRanking() {
             posMsg.innerText = '';
         }
 
-        // Tabla
         const tbody = document.getElementById('ranking-tbody');
         tbody.innerHTML = leaderboard.map((j, i) => {
             const esYo  = j.nombre.toLowerCase() === salaActual.nombreJugador.toLowerCase();
@@ -1170,11 +1069,8 @@ async function refrescarRanking() {
             </tr>`;
         }).join('');
 
-        // Mensaje de espera si no terminaron todos
         const esperaMsg = document.getElementById('ranking-espera-msg');
-        esperaMsg.style.display =
-            jugadores_terminaron < jugadores_totales ? 'block' : 'none';
-
+        esperaMsg.style.display = jugadores_terminaron < jugadores_totales ? 'block' : 'none';
     } catch (err) {
         console.error('Error cargando ranking:', err);
     }
@@ -1184,9 +1080,7 @@ async function verRankingTotal() {
     if (!salaActual.codigo) return;
     cambiarPantalla('scr-sala-ranking-total');
 
-    document.getElementById('sala-ranking-total-badge').innerHTML =
-        `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
-
+    document.getElementById('sala-ranking-total-badge').innerHTML = `🏟️ Sala: <strong>${salaActual.codigo}</strong>`;
     const tbody = document.getElementById('ranking-total-tbody');
     tbody.innerHTML = '<tr><td colspan="4" style="color:var(--text-muted);">Cargando...</td></tr>';
 
@@ -1213,7 +1107,6 @@ async function verRankingTotal() {
                 <td style="text-align:right;color:var(--text-muted);">${j.partidas_jugadas}</td>
             </tr>`;
         }).join('');
-
     } catch (err) {
         tbody.innerHTML = `<tr><td colspan="4" style="color:var(--error);">Error: ${err.message}</td></tr>`;
     }
