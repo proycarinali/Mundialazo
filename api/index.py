@@ -821,13 +821,102 @@ def generar_preguntas(partido_info: dict, jugadores: list) -> list:
 # ===============================================================================
 #  ENDPOINTS — originales
 # ===============================================================================
- 
+
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     ruta_html = os.path.join(DIR, "index.html")
     with open(ruta_html, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
- 
+
+@app.get("/api/ligas-disponibles")
+async def obtener_ligas_disponibles():
+    """
+    Obtiene las ligas disponibles desde API-Football de forma dinámica.
+    Incluye obligatoriamente el Mundial si está activo.
+    """
+    if not FOOTBALL_API_KEY:
+        # Fallback estático predecible si no hay API Key configurada
+        return {
+            "mundial_activo": True,
+            "ligas": [
+                {"id": 1, "nombre": "FIFA World Cup", "pais": "World", "badge": "Mundial"},
+                {"id": 39, "nombre": "Premier League", "pais": "England", "badge": "Disponible"},
+                {"id": 140, "nombre": "La Liga", "pais": "Spain", "badge": "Disponible"}
+            ]
+        }
+
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": FOOTBALL_API_KEY,
+    }
+
+    mundial_activo = False
+    ligas_resultado = []
+
+    try:
+        # 1. Comprobar si el mundial está activo (en vivo)
+        res_mundial = requests.get(
+            f"{API_FOOTBALL_BASE}/fixtures",
+            params={"league": MUNDIAL_2026_LEAGUE, "season": MUNDIAL_2026_SEASON, "live": "all"},
+            headers=headers,
+            timeout=5
+        )
+        if res_mundial.status_code == 200 and res_mundial.json().get("response"):
+            mundial_activo = True
+
+        # Si no hay en vivo, verificamos si hubo partidos recientes del mundial
+        if not mundial_activo:
+            res_mundial_fin = requests.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                params={"league": MUNDIAL_2026_LEAGUE, "season": MUNDIAL_2026_SEASON, "last": 1},
+                headers=headers,
+                timeout=5
+            )
+            if res_mundial_fin.status_code == 200 and res_mundial_fin.json().get("response"):
+                mundial_activo = True
+
+        # Siempre agregamos el mundial prioritariamente si está activo según la API
+        if mundial_activo:
+            ligas_resultado.append({
+                "id": MUNDIAL_2026_LEAGUE,
+                "nombre": "FIFA World Cup",
+                "pais": "World",
+                "badge": "Mundial Activo 🔥"
+            })
+
+        # 2. Consultar otras ligas populares configuradas disponibles
+        ligas_interes = [39, 140, 135, 78, 128] # Premier, LaLiga, Serie A, Bundesliga, Argentina
+        for league_id in ligas_interes:
+            res_liga = requests.get(
+                f"{API_FOOTBALL_BASE}/leagues",
+                params={"id": league_id, "current": "true"},
+                headers=headers,
+                timeout=4
+            )
+            if res_liga.status_code == 200:
+                data = res_liga.json().get("response", [])
+                if data:
+                    item = data[0]
+                    ligas_resultado.append({
+                        "id": item["league"]["id"],
+                        "nombre": item["league"]["name"],
+                        "pais": item["country"]["name"],
+                        "badge": "Disponible"
+                    })
+
+    except Exception as e:
+        print(f"Error consultando ligas en API-Football: {e}")
+        # Asegurar fallback de contingencia para no romper la app
+        return {
+            "mundial_activo": True,
+            "ligas": [{"id": 1, "nombre": "FIFA World Cup", "pais": "World", "badge": "Mundial"}]
+        }
+
+    return {
+        "mundial_activo": mundial_activo,
+        "ligas": ligas_resultado
+    }
  
 @app.get("/api/mundial-info")
 async def mundial_info():
