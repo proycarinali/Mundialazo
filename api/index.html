@@ -733,7 +733,7 @@ async function arrancarDeteccion() {
 async function seleccionarLiga(ligaId, ligaNombre, ligaSeason) {
     ligaSeleccionada = { id: ligaId, nombre: ligaNombre, season: ligaSeason };
     cambiarPantalla('scr-detectando');
-    document.getElementById('detectando-msg').innerText = `Buscando último partido disponible de ${ligaNombre}...`;
+    document.getElementById('detectando-msg').innerText = `Buscando partido de hoy de ${ligaNombre}...`;
 
     // Ocultar error previo
     const errorBox = document.getElementById('error-trivia-msg');
@@ -745,35 +745,48 @@ async function seleccionarLiga(ligaId, ligaNombre, ligaSeason) {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status} al obtener el partido`);
         const data = await res.json();
+
+        // ── Sin partido hoy → trivia genérica de la liga ─────────────────────
+        if (data.sin_partido_hoy) {
+            await arrancarTriviaGenerica(ligaId, ligaNombre, ligaSeason);
+            return;
+        }
+
         if (data.error) throw new Error(data.error);
-        // Guardar liga_id y season para usarlos al generar la trivia
+
+        // ── Partido encontrado → flujo normal ────────────────────────────────
         partidoActual = { ...data, liga_id: ligaId, season: ligaSeason };
         mostrarConfirmacionPartido(partidoActual);
+
     } catch (err) {
         console.error('Error cargando partido de liga:', err);
-        // No hay partido activo/reciente → generar trivia general de la liga con IA
-        await arrancarTriviaGeneralLiga(ligaId, ligaNombre);
+        // Si falla la conexión también intentamos trivia genérica
+        await arrancarTriviaGenerica(ligaId, ligaNombre, ligaSeason);
     }
 }
 
-// ─── Fallback: trivia general de una liga cuando no hay partido disponible ───
-async function arrancarTriviaGeneralLiga(ligaId, ligaNombre) {
+// ─── Trivia genérica cuando no hay partido hoy ────────────────────────────────
+async function arrancarTriviaGenerica(ligaId, ligaNombre, ligaSeason) {
     cambiarPantalla('scr-loading');
-    document.getElementById('loading-msg').innerText = `No hay partido disponible de ${ligaNombre}. Generando trivia general con IA...`;
+    document.getElementById('loading-msg').innerText =
+        `No hay partido de ${ligaNombre} hoy. Generando trivia general con IA...`;
 
     puntosLocal = 0;
     indicePreguntaActual = 0;
     document.getElementById('local-score').innerText = '0 pts';
 
     try {
-        const res = await fetch(`/api/trivias-generales?liga_id=${ligaId}&liga_nombre=${encodeURIComponent(ligaNombre)}`);
+        let url = `/api/trivias-genericas?liga_id=${ligaId}&liga_nombre=${encodeURIComponent(ligaNombre)}`;
+        if (ligaSeason) url += `&season=${ligaSeason}`;
+        const res = await fetch(url);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         if (!data.preguntas || data.preguntas.length === 0) throw new Error('La IA no generó preguntas.');
 
         preguntasPartida = data.preguntas;
-        partidoActual = { clave: data.clave, descripcion: data.partido, tipo: 'historico' };
+        partidoActual    = { clave: data.clave, descripcion: data.partido, tipo: 'generica',
+                             liga_id: ligaId };
 
         const header       = document.getElementById('quiz-partido-header');
         const headerBadge  = document.getElementById('quiz-partido-badge-label');
@@ -784,11 +797,12 @@ async function arrancarTriviaGeneralLiga(ligaId, ligaNombre) {
 
         cambiarPantalla('scr-quiz');
         renderizarPreguntaActual();
+
     } catch (err) {
-        console.error('Error generando trivia general:', err);
+        console.error('Error generando trivia genérica:', err);
         cambiarPantalla('scr-ligas');
         const errorDiv = document.getElementById('ligas-error');
-        errorDiv.innerText = '⚠️ No se pudo generar la trivia de ' + ligaNombre + ': ' + err.message;
+        errorDiv.innerText = `⚠️ No se pudo generar trivia para ${ligaNombre}: ${err.message}`;
         errorDiv.style.display = 'block';
     }
 }
