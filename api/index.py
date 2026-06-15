@@ -514,28 +514,36 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             except Exception as e:
                 print(f"[API-FOOTBALL] Error en vivo liga={lid} season={s}: {e}")
 
-        # ?? 2. Buscar finalizado HOY ?????????????????????????????????????????????
+        # -- 2. Buscar finalizado HOY (sin filtro status, filtramos manualmente) ---
+        # La API no acepta "FT-AET-PEN" como un valor unico; hay que pedir todos
+        # los fixtures del dia y quedarse con los que esten finalizados.
+        ESTADOS_FINALIZADOS = {"FT", "AET", "PEN", "AWD", "WO"}
+        ESTADOS_EN_CURSO    = {"1H", "2H", "HT", "ET", "BT", "P", "SUSP", "INT", "LIVE"}
         for lid, s in combos:
             try:
                 r = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
-                    params={"league": lid, "season": s, "date": hoy, "status": "FT-AET-PEN"},
+                    params={"league": lid, "season": s, "date": hoy},
                     headers=headers, timeout=8,
                 )
                 if r.status_code == 200:
-                    fixtures = r.json().get("response", [])
-                    if fixtures:
-                        # Tomar el mas reciente del dia
-                        fixtures.sort(
+                    todos = r.json().get("response", [])
+                    finalizados = [
+                        f for f in todos
+                        if f.get("fixture", {}).get("status", {}).get("short", "") in ESTADOS_FINALIZADOS
+                    ]
+                    if finalizados:
+                        finalizados.sort(
                             key=lambda f: f.get("fixture", {}).get("date", ""),
                             reverse=True
                         )
                         print(f"[API-FOOTBALL] [OK] Partido finalizado hoy liga={lid} season={s}")
-                        return _extraer_partido(fixtures[0], "finalizado", lid)
+                        return _extraer_partido(finalizados[0], "finalizado", lid)
+                    # Hay fixtures hoy pero en curso o por empezar - ya capturado en paso 1 (live)
             except Exception as e:
-                print(f"[API-FOOTBALL] Error finalizado hoy liga={lid} season={s}: {e}")
+                print(f"[API-FOOTBALL] Error fixtures hoy liga={lid} season={s}: {e}")
 
-        # ?? 3. No hay partido hoy ????????????????????????????????????????????????
+        # -- 3. No hay partido hoy ------------------------------------------------
         print(f"[API-FOOTBALL] Sin partido hoy para liga={league_id}. Se generara trivia generica.")
         return {}
 
@@ -907,8 +915,8 @@ async def root():
 
 # Ligas "fijas" que siempre aparecen en el menu (independientemente de la API)
 LIGAS_FIJAS = [
-    {"id": 1,   "nombre": "Mundial 2026", "pais": "Intl Internacional", "badge": "? MUNDIAL", "es_mundial": True},
-    {"id": 732, "nombre": "Mundial 2026", "pais": "Intl Internacional", "badge": "? MUNDIAL", "es_mundial": True},
+    {"id": 1,   "nombre": "Mundial 2026", "pais": "Internacional", "badge": "[MUNDIAL]", "es_mundial": True},
+    {"id": 732, "nombre": "Mundial 2026", "pais": "Internacional", "badge": "[MUNDIAL]", "es_mundial": True},
 ]
 
 # IDs de ligas curadas que siempre queremos mostrar si tienen temporada activa.
@@ -932,7 +940,7 @@ LIGAS_CURADAS = {
     207: ("Super Lig",                  "TUR"),
     # Sudamerica - Ligas nacionales
     128: ("Liga Argentina",             "ARG"),
-    71:  ("Brasileir?o",                "BRA"),
+    71:  ("Brasileirao",                "BRA"),
     265: ("Liga MX",                    "MEX"),
     239: ("Primera Division Chile",     "CHI"),
     281: ("Liga de Colombia",           "COL"),
@@ -977,8 +985,8 @@ async def ligas_disponibles():
         ligas_resultado.append({
             "id":         mundial_id_activo or 1,
             "nombre":     "Mundial 2026",
-            "pais":       "Intl Internacional",
-            "badge":      "? EN VIVO" if mundial_activo else "? MUNDIAL",
+            "pais":       "Internacional",
+            "badge":      "[EN VIVO]" if mundial_activo else "[MUNDIAL]",
             "es_mundial": True,
             "activo":     mundial_activo,
         })
@@ -1001,7 +1009,7 @@ async def ligas_disponibles():
                                 "id":         lid,
                                 "nombre":     nombre,
                                 "pais":       f"{emoji} {pais_api}" if pais_api else emoji,
-                                "badge":      "? ACTIVA",
+                                "badge":      "[ACTIVA]",
                                 "es_mundial": False,
                                 "activo":     True,
                                 "season":     season,
@@ -1014,8 +1022,8 @@ async def ligas_disponibles():
     else:
         # Sin API key: solo el Mundial
         ligas_resultado.append({
-            "id": 1, "nombre": "Mundial 2026", "pais": "Intl Internacional",
-            "badge": "? MUNDIAL", "es_mundial": True, "activo": False,
+            "id": 1, "nombre": "Mundial 2026", "pais": "Internacional",
+            "badge": "[MUNDIAL]", "es_mundial": True, "activo": False,
         })
 
     return {
