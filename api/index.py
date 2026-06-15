@@ -417,7 +417,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None) -> dict:
     try:
         fixture_data = None
         tipo = None
-        league_id_usado = league_id
+        league_id_usado = league_id  # Para liga específica; se sobreescribe en bloque Mundial
 
         if league_id is not None:
             # ── Liga específica solicitada ──────────────────────────────────────
@@ -812,18 +812,18 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
     estado = "en curso" if tipo == "en_curso" else "ya finalizado"
 
     prompt = (
-        "A continuación tenés datos OFICIALES extraídos en tiempo real desde la API de ESPN "
-        f"sobre un partido ({estado}) del Mundial 2026. Estos son los ÚNICOS datos válidos: "
+        "A continuación tenés datos OFICIALES extraídos en tiempo real desde la API de fútbol "
+        f"sobre un partido ({estado}). Estos son los ÚNICOS datos válidos: "
         "no uses tu conocimiento previo sobre otros partidos, no asumas otro resultado, "
         "y no inventes jugadores, goles ni estadísticas que no estén en este texto.\n\n"
-        f"DATOS DEL PARTIDO (fuente: ESPN):\n{contexto_partido}"
+        f"DATOS DEL PARTIDO:\n{contexto_partido}"
         f"{contexto_jugadores}\n\n"
-        "Basándote ESTRICTAMENTE en los datos de ESPN anteriores, crea EXACTAMENTE 10 preguntas "
+        "Basándote ESTRICTAMENTE en los datos anteriores, crea EXACTAMENTE 10 preguntas "
         "de trivia variadas y desafiantes. Incluye preguntas sobre: resultado, goleadores, asistencias, "
         "tarjetas, jugadores destacados, estadísticas, árbitro, estadio, eventos del partido, "
-        "contexto histórico, récords. En ninguna pregunta nombres que los datos los sacas de ESPN."
-        "Si un dato no aparece en los datos de ESPN, NO generes una pregunta sobre ese dato.\n"
-        "IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas según los datos de ESPN "
+        "contexto histórico, récords. En ninguna pregunta menciones de dónde sacás los datos.\n"
+        "Si un dato no aparece en los datos proporcionados, NO generes una pregunta sobre ese dato.\n"
+        "IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas según los datos "
         "proporcionados y corresponder al partido indicado arriba.\n"
         "FORMATO: No uses comillas dobles (\") dentro de los textos de pregunta/opciones/correcta. "
         "Si necesitás citar algo, usá comillas simples (').\n\n"
