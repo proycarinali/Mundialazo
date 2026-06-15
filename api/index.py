@@ -397,8 +397,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     """
     Obtiene el último partido (finalizado o en curso) del Mundial 2026
     (o de la liga indicada por league_id) usando la API-Football (api-sports.io).
-    Si se pasa season, usa esa temporada. Si no, para ligas no-Mundial prueba
-    2025 y 2026 automáticamente (ligas europeas usan season=2025).
     """
     if not FOOTBALL_API_KEY:
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada, usando ESPN como fallback.")
@@ -412,12 +410,15 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     try:
         fixture_data = None
         tipo = None
-        league_id_usado = league_id  # Para liga específica; se sobreescribe en bloque Mundial
+        league_id_usado = league_id  
 
         if league_id is not None:
             # ── Liga específica solicitada ──────────────────────────────────────
-            # Si se pasó season explícita usarla, sino probar 2025 y 2026
-            seasons_a_probar = [season] if season else [2025, 2026, 2024]
+            # CORRECCIÓN: Si es id 1 o 732, priorizar temporada 2026 del Mundial
+            if league_id in MUNDIAL_2026_IDS:
+                seasons_a_probar = [MUNDIAL_2026_SEASON]
+            else:
+                seasons_a_probar = [season] if season else [2025, 2026, 2024]
 
             for s in seasons_a_probar:
                 if fixture_data:
@@ -440,14 +441,13 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 except Exception as e:
                     print(f"[API-FOOTBALL] Error en vivo liga={league_id} season={s}: {e}")
 
-                # Luego buscar último finalizado
+                # Luego buscar último finalizado (CORRECCIÓN: quitamos el filtro estricto de status roto)
                 try:
                     res_fin = requests.get(
                         f"{API_FOOTBALL_BASE}/fixtures",
                         params={
                             "league": league_id,
                             "season": s,
-                            "status": "FT-AET-PEN",
                             "last":   1,
                         },
                         headers=headers,
@@ -463,10 +463,13 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                     print(f"[API-FOOTBALL] Error finalizado liga={league_id} season={s}: {e}")
 
             if not fixture_data:
-                print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id}.")
-                return {}
+                print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id}. Probando fallback global de Mundial...")
+                # CORRECCIÓN: Si falla la búsqueda por ID directo, no morir, intentar el buscador automático de Mundial
+                fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
+                if not fixture_data:
+                    return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
         else:
-            # ── Mundial: probar IDs 1 y 732 ─────────────────────────────────────
+            # ── Mundial por defecto: probar IDs 1 y 732 ─────────────────────────────────────
             fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
             if not fixture_data:
                 return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
@@ -497,7 +500,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
 
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
-        # FIX: La clave incluye el league_id para evitar mezcla de preguntas entre ligas
         clave       = f"{league_id_usado}_{fixture_id}"
 
         # Obtener eventos del partido para el contexto (goles, tarjetas)
@@ -544,7 +546,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     except Exception as e:
         print(f"[API-FOOTBALL] Excepción: {e}. Fallback a ESPN.")
         return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
-
 
 def obtener_jugadores_api_football(fixture_id) -> list:
     """
