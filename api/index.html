@@ -622,8 +622,7 @@ let indicePreguntaActual = 0;
 let puntosLocal        = 0;
 let preguntaActualObj  = null;
 let partidoActual      = null;   
-let ligaSeleccionada   = null;
-let mundialActivo      = false;   // ← true si hay fixtures del Mundial en la API
+let ligaSeleccionada   = null;   
 let salaActual         = { codigo: '', nombreJugador: '' };
 
 // ─── Banco fallback ───────────────────────────────────────────────────────────
@@ -700,8 +699,6 @@ async function arrancarDeteccion() {
         
         loader.style.display = 'none';
 
-        mundialActivo = !!data.mundial_activo;   // ← guardar estado global
-
         if (data.mundial_activo) {
             subtitle.innerHTML = "🔥 ¡El Mundial de Fútbol está activo! Elegí el Mundial prioritario o jugá otra liga disponible:";
         } else {
@@ -715,20 +712,15 @@ async function arrancarDeteccion() {
             return;
         }
 
-        listaUl.innerHTML = ligas.map(liga => {
-            const esMundial = (liga.id === 1 || liga.id === 732);
-            const badgeExtra = (esMundial && !data.mundial_activo)
-                ? ' <span style="font-size:0.68rem;background:rgba(99,102,241,0.2);color:#a5b4fc;padding:2px 8px;border-radius:20px;margin-left:4px;">🕹️ TRIVIA HISTÓRICA</span>'
-                : '';
-            return `
+        listaUl.innerHTML = ligas.map(liga => `
             <li class="liga-item" onclick="seleccionarLiga(${liga.id}, '${liga.nombre}', ${liga.season || 'null'})">
                 <div class="liga-info">
-                    <span class="liga-nombre">⚽ ${liga.nombre}${badgeExtra}</span>
+                    <span class="liga-nombre">⚽ ${liga.nombre}</span>
                     <span class="liga-pais">${liga.pais}</span>
                 </div>
                 <span class="liga-badge">${liga.badge}</span>
-            </li>`;
-        }).join('');
+            </li>
+        `).join('');
         listaUl.style.display = 'block';
 
     } catch (err) {
@@ -740,45 +732,6 @@ async function arrancarDeteccion() {
 
 async function seleccionarLiga(ligaId, ligaNombre, ligaSeason) {
     ligaSeleccionada = { id: ligaId, nombre: ligaNombre, season: ligaSeason };
-
-    // ── Si es el Mundial y NO hay fixtures activos → trivia histórica ──────────
-    const esMundial = (ligaId === 1 || ligaId === 732);
-    if (esMundial && !mundialActivo) {
-        cambiarPantalla('scr-loading');
-        document.getElementById('loading-msg').innerText = '🌍 Generando trivia histórica de todos los Mundiales...';
-        puntosLocal = 0;
-        indicePreguntaActual = 0;
-        document.getElementById('local-score').innerText = '0 pts';
-        try {
-            const res = await fetch('/api/trivias-mundial-historico');
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const data = await res.json();
-            if (data.error) throw new Error(data.error);
-            if (!data.preguntas || data.preguntas.length === 0) throw new Error('La IA no generó preguntas.');
-
-            preguntasPartida = data.preguntas;
-            partidoActual = { clave: 'mundial_historico', descripcion: 'Historia de los Mundiales FIFA', tipo: 'historico' };
-
-            const header      = document.getElementById('quiz-partido-header');
-            const headerBadge = document.getElementById('quiz-partido-badge-label');
-            const headerTitulo = document.getElementById('quiz-partido-titulo');
-            headerBadge.innerText = '🌍 Trivia Mundial';
-            headerTitulo.innerText = 'Historia de los Mundiales FIFA';
-            header.style.display = 'block';
-
-            cambiarPantalla('scr-quiz');
-            renderizarPreguntaActual();
-        } catch (err) {
-            console.error('Error cargando trivia mundial histórica:', err);
-            cambiarPantalla('scr-ligas');
-            const errorDiv = document.getElementById('ligas-error');
-            errorDiv.innerText = '⚠️ No se pudo generar la trivia histórica: ' + err.message;
-            errorDiv.style.display = 'block';
-        }
-        return;
-    }
-
-    // ── Liga normal (o Mundial activo) → detección de partido ─────────────────
     cambiarPantalla('scr-detectando');
     document.getElementById('detectando-msg').innerText = `Buscando último partido disponible de ${ligaNombre}...`;
 
@@ -798,10 +751,44 @@ async function seleccionarLiga(ligaId, ligaNombre, ligaSeason) {
         mostrarConfirmacionPartido(partidoActual);
     } catch (err) {
         console.error('Error cargando partido de liga:', err);
-        // Volver al menú mostrando el error en lugar de inventar un partido
+        // No hay partido activo/reciente → generar trivia general de la liga con IA
+        await arrancarTriviaGeneralLiga(ligaId, ligaNombre);
+    }
+}
+
+// ─── Fallback: trivia general de una liga cuando no hay partido disponible ───
+async function arrancarTriviaGeneralLiga(ligaId, ligaNombre) {
+    cambiarPantalla('scr-loading');
+    document.getElementById('loading-msg').innerText = `No hay partido disponible de ${ligaNombre}. Generando trivia general con IA...`;
+
+    puntosLocal = 0;
+    indicePreguntaActual = 0;
+    document.getElementById('local-score').innerText = '0 pts';
+
+    try {
+        const res = await fetch(`/api/trivias-generales?liga_id=${ligaId}&liga_nombre=${encodeURIComponent(ligaNombre)}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        if (!data.preguntas || data.preguntas.length === 0) throw new Error('La IA no generó preguntas.');
+
+        preguntasPartida = data.preguntas;
+        partidoActual = { clave: data.clave, descripcion: data.partido, tipo: 'historico' };
+
+        const header       = document.getElementById('quiz-partido-header');
+        const headerBadge  = document.getElementById('quiz-partido-badge-label');
+        const headerTitulo = document.getElementById('quiz-partido-titulo');
+        headerBadge.innerText  = '📚 Trivia general';
+        headerTitulo.innerText = data.partido;
+        header.style.display   = 'block';
+
+        cambiarPantalla('scr-quiz');
+        renderizarPreguntaActual();
+    } catch (err) {
+        console.error('Error generando trivia general:', err);
         cambiarPantalla('scr-ligas');
         const errorDiv = document.getElementById('ligas-error');
-        errorDiv.innerText = '⚠️ No se pudo obtener el partido de ' + ligaNombre + ': ' + err.message;
+        errorDiv.innerText = '⚠️ No se pudo generar la trivia de ' + ligaNombre + ': ' + err.message;
         errorDiv.style.display = 'block';
     }
 }
