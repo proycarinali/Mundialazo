@@ -387,7 +387,7 @@
         <!-- Último partido jugado -->
         <div id="menu-ultimo-partido" style="display:none; background:#1e293b; border:1px solid #334155; border-radius:12px; padding:14px 16px; margin:0 0 16px; text-align:left;">
             <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">⚡ Último partido detectado</div>
-            <div id="menu-partido-nombre" style="font-weight:bold; font-size:1rem; color:#fff; line-height:1.3;"></div>
+            <div id="menu-partido-nombre" style="font-weight:bold; font-size:1.05rem; color:#fff; line-height:1.3;"></div>
             <div id="menu-partido-liga" style="font-size:0.78rem; color:var(--text-muted); margin-top:3px;"></div>
         </div>
 
@@ -656,11 +656,21 @@ async function cargarUltimoPartidoEnMenu() {
         const nombre = document.getElementById('menu-partido-nombre');
         const liga = document.getElementById('menu-partido-liga');
 
-        nombre.innerText = ultimo.descripcion || ultimo.clave;
-        const tipoTexto = ultimo.tipo === 'en_curso'
-            ? '🔴 EN CURSO'
-            : '✅ Finalizado';
-        liga.innerText = tipoTexto;
+        // La descripción viene como "Ronda: EquipoA goles-goles EquipoB"
+        // Mostramos la parte del partido (después del ":") como título principal
+        let desc = ultimo.descripcion || ultimo.clave || '';
+        let partidoNombre = desc;
+        const matchPartido = desc.match(/:\s*(.+)$/);
+        if (matchPartido) {
+            partidoNombre = matchPartido[1].trim();
+        }
+        nombre.innerText = partidoNombre;
+
+        const tipoTexto = ultimo.tipo === 'en_curso' ? '🔴 EN CURSO' : '✅ Finalizado';
+        // Mostrar también la ronda/competición si viene en la descripción
+        const matchRonda = desc.match(/^(.+?):/);
+        const rondaTexto = matchRonda ? ` · ${matchRonda[1].trim()}` : '';
+        liga.innerText = tipoTexto + rondaTexto;
         card.style.display = 'block';
     } catch (_) {}
 }
@@ -703,7 +713,7 @@ async function arrancarDeteccion() {
         }
 
         listaUl.innerHTML = ligas.map(liga => `
-            <li class="liga-item" onclick="seleccionarLiga(${liga.id}, '${liga.nombre}')">
+            <li class="liga-item" onclick="seleccionarLiga(${liga.id}, '${liga.nombre}', ${liga.season || 'null'})">
                 <div class="liga-info">
                     <span class="liga-nombre">⚽ ${liga.nombre}</span>
                     <span class="liga-pais">${liga.pais}</span>
@@ -720,24 +730,27 @@ async function arrancarDeteccion() {
     }
 }
 
-async function seleccionarLiga(ligaId, ligaNombre) {
-    ligaSeleccionada = { id: ligaId, nombre: ligaNombre };
+async function seleccionarLiga(ligaId, ligaNombre, ligaSeason) {
+    ligaSeleccionada = { id: ligaId, nombre: ligaNombre, season: ligaSeason };
     cambiarPantalla('scr-detectando');
     document.getElementById('detectando-msg').innerText = `Buscando último partido disponible de ${ligaNombre}...`;
 
     try {
-        const res = await fetch(`/api/mundial-info?liga_id=${ligaId}`);
+        let url = `/api/mundial-info?liga_id=${ligaId}`;
+        if (ligaSeason) url += `&season=${ligaSeason}`;
+        const res = await fetch(url);
         if (!res.ok) throw new Error('Error obteniendo el fixture');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        // Guardar liga_id en el partido para usarlo al generar la trivia
-        partidoActual = { ...data, liga_id: ligaId };
+        // Guardar liga_id y season en el partido para usarlo al generar la trivia
+        partidoActual = { ...data, liga_id: ligaId, season: ligaSeason };
         mostrarConfirmacionPartido(partidoActual);
     } catch (err) {
         console.error('Error cargando partido de liga:', err);
         // Fallback: trivia genérica de la liga sin clave de partido específico
         partidoActual = {
             liga_id: ligaId,
+            season: ligaSeason,
             clave: '',
             descripcion: `Último encuentro disputado en ${ligaNombre}`,
             tipo: 'finalizado',
