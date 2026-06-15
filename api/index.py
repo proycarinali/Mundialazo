@@ -1113,7 +1113,6 @@ async def mundial_info(liga_id: int = None, season: int = None):
     """
     Devuelve info del partido actual (el "ultimo" del historial).
     - Si se pasa liga_id, busca el último partido de esa liga específica.
-    - Si se pasa season, lo usa directamente (evita probar temporadas equivocadas).
     - Si no se pasa, usa el Mundial 2026 (probando IDs 1 y 732).
     SIEMPRE verifica primero contra la API si hay un partido más reciente,
     comparando contra el ultimo partido guardado en el HISTORIAL.
@@ -1193,7 +1192,7 @@ async def partidos_historial():
 
 
 @app.get("/api/trivias")
-async def obtener_trivias(clave: str = "", refresh: bool = False, liga_id: int = None):
+async def obtener_trivias(clave: str = "", refresh: bool = False, liga_id: int = None, season: int = None):
     """
     Devuelve preguntas para jugar.
     - Si se pasa `clave`, busca ese partido en el HISTORIAL y usa/genera
@@ -1225,7 +1224,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False, liga_id: int =
 
         if not partido_item:
             print(f"[TRIVIAS] No hay historial, consultando API (liga_id={liga_id})...")
-            partido_api = obtener_ultimo_partido_api_football(league_id=liga_id)
+            partido_api = obtener_ultimo_partido_api_football(league_id=liga_id, season=season)
             if partido_api:
                 partido_item = upsert_partido_historial(partido_api)
                 guardar_partido_rag(partido_api)
