@@ -1274,23 +1274,26 @@ async def obtener_trivias(clave: str = "", refresh: bool = False, liga_id: int =
     }
  
  
-def _generar_preguntas_mundial_historico() -> list:
+def _generar_preguntas_generales_liga(liga_id: int, liga_nombre: str) -> list:
     """
-    Genera 10 preguntas de trivia sobre todos los Mundiales de fútbol en general
-    (no sobre un partido específico), usando la IA configurada.
-    Se usa cuando no hay Mundial activo en la API.
+    Genera 10 preguntas de trivia general sobre una liga o torneo
+    cuando no hay partido disponible en la API.
     """
     if not grok_client and not gemini_client:
-        print("[MUNDIAL-HIST] No hay IA configurada, devolviendo banco fallback.")
         return []
 
+    es_mundial = liga_id in MUNDIAL_2026_IDS
+    if es_mundial:
+        tema = "la historia completa de los Mundiales de Fútbol FIFA (desde Uruguay 1930 hasta Qatar 2022): campeones, goleadores históricos, récords, jugadores legendarios, resultados memorables, sedes, datos curiosos"
+        titulo = "Historia de los Mundiales FIFA"
+    else:
+        tema = f"la historia y datos destacados de {liga_nombre}: campeones históricos, jugadores legendarios, récords, partidos memorables, estadios, entrenadores, datos curiosos de la competición"
+        titulo = f"Historia de {liga_nombre}"
+
     prompt = (
-        "Sos un experto en historia de los Mundiales de Fútbol FIFA. "
-        "Generá EXACTAMENTE 10 preguntas de trivia variadas y desafiantes sobre la historia "
-        "de TODOS los Mundiales de fútbol (desde Uruguay 1930 hasta Qatar 2022). "
-        "Las preguntas deben cubrir distintos mundiales, no siempre el mismo. "
-        "Incluí preguntas sobre: campeones, goleadores históricos, récords, estadios, "
-        "jugadores legendarios, datos curiosos, resultados memorables, sedes, árbitros, etc. "
+        f"Sos un experto en fútbol. Generá EXACTAMENTE 10 preguntas de trivia variadas y desafiantes sobre "
+        f"{tema}. "
+        "Las preguntas deben cubrir distintas épocas y aspectos, no siempre el mismo. "
         "Asegurate de que TODAS las respuestas correctas sean 100% verídicas y verificables. "
         "Cada pregunta debe tener exactamente 3 opciones (una correcta y dos incorrectas plausibles). "
         "FORMATO: No uses comillas dobles (\") dentro de los textos. Usá comillas simples (') si necesitás citar algo.\n\n"
@@ -1310,7 +1313,7 @@ def _generar_preguntas_mundial_historico() -> list:
             raw = _llamar_ia(client, model, prompt, nombre)
             break
         except Exception as e:
-            print(f"[MUNDIAL-HIST] {nombre} falló: {e}")
+            print(f"[TRIVIAS-GEN] {nombre} falló: {e}")
 
     if not raw:
         return []
@@ -1319,41 +1322,44 @@ def _generar_preguntas_mundial_historico() -> list:
     try:
         parsed = json.loads(texto)
     except json.JSONDecodeError:
-        import re
-        texto_reparado = re.sub(
+        import re as _re
+        texto_rep = _re.sub(
             r'(?<=[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,.\-])"(?=[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,.\-])',
             r'\\"', texto
         )
         try:
-            parsed = json.loads(texto_reparado)
+            parsed = json.loads(texto_rep)
         except json.JSONDecodeError:
-            ultimo_corte = texto.rfind("}")
-            texto_cortado = texto[:ultimo_corte + 1]
-            if not texto_cortado.rstrip().endswith("]}"):
-                texto_cortado = texto_cortado.rstrip().rstrip(",") + "]}"
-            parsed = json.loads(texto_cortado)
+            corte = texto.rfind("}")
+            txt2  = texto[:corte + 1]
+            if not txt2.rstrip().endswith("]}"):
+                txt2 = txt2.rstrip().rstrip(",") + "]}"
+            parsed = json.loads(txt2)
 
-    return parsed.get("preguntas", [])
+    preguntas = parsed.get("preguntas", [])
+    return preguntas, titulo
 
 
-@app.get("/api/trivias-mundial-historico")
-async def trivias_mundial_historico():
+@app.get("/api/trivias-generales")
+async def trivias_generales(liga_id: int, liga_nombre: str = "la liga"):
     """
-    Genera 10 preguntas de trivia sobre la historia de todos los Mundiales
-    de fútbol. Se llama cuando el usuario elige 'Mundial' pero no hay
-    fixtures activos en la API en este momento.
+    Genera 10 preguntas de trivia general sobre una liga o el Mundial
+    cuando no hay partido/fixture disponible en la API para esa competición.
     """
     try:
         loop = asyncio.get_event_loop()
-        preguntas = await loop.run_in_executor(None, _generar_preguntas_mundial_historico)
+        resultado = await loop.run_in_executor(None, _generar_preguntas_generales_liga, liga_id, liga_nombre)
+        if not resultado:
+            return {"error": f"No se pudieron generar preguntas para {liga_nombre}. Verificá la configuración de la IA."}
+        preguntas, titulo = resultado
         if not preguntas:
-            return {"error": "No se pudieron generar preguntas históricas del Mundial. Verificá la configuración de la IA."}
+            return {"error": f"La IA no generó preguntas para {liga_nombre}."}
         return {
-            "preguntas": preguntas,
+            "preguntas":   preguntas,
             "total_banco": len(preguntas),
-            "clave": "mundial_historico",
-            "partido": "Historia de los Mundiales FIFA",
-            "tipo": "historico",
+            "clave":       f"general_{liga_id}",
+            "partido":     titulo,
+            "tipo":        "historico",
             "desde_cache": False,
         }
     except Exception as e:
