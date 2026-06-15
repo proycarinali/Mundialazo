@@ -383,6 +383,14 @@
     <div id="scr-menu" class="screen active">
         <h1>⚽ Golazo IA</h1>
         <p>Trivia futbolera impulsada por IA y estadísticas en tiempo real.</p>
+
+        <!-- Último partido jugado -->
+        <div id="menu-ultimo-partido" style="display:none; background:#1e293b; border:1px solid #334155; border-radius:12px; padding:14px 16px; margin:0 0 16px; text-align:left;">
+            <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">⚡ Último partido detectado</div>
+            <div id="menu-partido-nombre" style="font-weight:bold; font-size:1rem; color:#fff; line-height:1.3;"></div>
+            <div id="menu-partido-liga" style="font-size:0.78rem; color:var(--text-muted); margin-top:3px;"></div>
+        </div>
+
         <button class="btn" onclick="arrancarDeteccion()">Jugar Solo 🚀</button>
         <button class="btn btn-secondary" onclick="irASalas()">🏟️ Jugar en Sala</button>
         <button class="btn btn-secondary" onclick="irAHistorial()">📜 Jugar partido anterior</button>
@@ -528,11 +536,16 @@
     </div>
 
     <div id="scr-quiz" class="screen">
+        <!-- Partido visible arriba -->
+        <div id="quiz-partido-header" style="background:#1e293b; border:1px solid #334155; border-radius:10px; padding:10px 14px; margin-bottom:14px; display:none;">
+            <div id="quiz-partido-badge-label" style="font-size:0.7rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:3px;"></div>
+            <div id="quiz-partido-titulo" style="font-weight:bold; font-size:0.97rem; color:#fff; line-height:1.3;"></div>
+        </div>
         <div class="scoreboard">
             <span id="quiz-progress">Pregunta: 0/0</span>
             <span id="local-score" style="color:var(--success);font-weight:bold;">0 pts</span>
         </div>
-        <div id="partido-label-quiz" class="partido-label"></div>
+        <div id="partido-label-quiz" class="partido-label" style="display:none;"></div>
         <h3 id="box-pregunta" style="text-align:left;line-height:1.4;">Cargando...</h3>
         <div id="container-options" class="options-container"></div>
         <div id="box-feedback" class="feedback"></div>
@@ -626,7 +639,34 @@ function cambiarPantalla(id) {
 
 function volverAlMenu() {
     cambiarPantalla('scr-menu');
+    cargarUltimoPartidoEnMenu();
 }
+
+// ─── Mostrar último partido en el menú ───────────────────────────────────────
+async function cargarUltimoPartidoEnMenu() {
+    try {
+        const res = await fetch('/api/partidos-historial');
+        if (!res.ok) return;
+        const data = await res.json();
+        const partidos = data.partidos || [];
+        const ultimo = partidos.find(p => p.ultimo) || partidos[0];
+        if (!ultimo) return;
+
+        const card = document.getElementById('menu-ultimo-partido');
+        const nombre = document.getElementById('menu-partido-nombre');
+        const liga = document.getElementById('menu-partido-liga');
+
+        nombre.innerText = ultimo.descripcion || ultimo.clave;
+        const tipoTexto = ultimo.tipo === 'en_curso'
+            ? '🔴 EN CURSO'
+            : '✅ Finalizado';
+        liga.innerText = tipoTexto;
+        card.style.display = 'block';
+    } catch (_) {}
+}
+
+// Cargar al iniciar
+cargarUltimoPartidoEnMenu();
 
 // ─── PASO 1: Carga y detección dinámica de Ligas ──────────────────────────────
 async function arrancarDeteccion() {
@@ -784,9 +824,21 @@ async function confirmarPartido() {
         }
 
         const label = document.getElementById('partido-label-quiz');
+        const header = document.getElementById('quiz-partido-header');
+        const headerBadge = document.getElementById('quiz-partido-badge-label');
+        const headerTitulo = document.getElementById('quiz-partido-titulo');
+
         if (data.partido) {
             const icono = data.tipo === 'en_curso' ? '🔴 EN CURSO' : '⚽';
             label.innerText = `${icono} ${data.partido}`;
+            // Header visible arriba del quiz
+            headerBadge.innerText = data.tipo === 'en_curso' ? '🔴 Partido en curso' : '⚽ Partido';
+            headerTitulo.innerText = data.partido;
+            header.style.display = 'block';
+        } else if (partidoActual && partidoActual.descripcion) {
+            headerBadge.innerText = '⚽ Partido';
+            headerTitulo.innerText = partidoActual.descripcion;
+            header.style.display = 'block';
         }
 
     } catch (err) {
