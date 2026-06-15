@@ -387,7 +387,7 @@
         <!-- Último partido jugado -->
         <div id="menu-ultimo-partido" style="display:none; background:#1e293b; border:1px solid #334155; border-radius:12px; padding:14px 16px; margin:0 0 16px; text-align:left;">
             <div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:0.05em;">⚡ Último partido detectado</div>
-            <div id="menu-partido-nombre" style="font-weight:bold; font-size:1.05rem; color:#fff; line-height:1.3;"></div>
+            <div id="menu-partido-nombre" style="font-weight:bold; font-size:1rem; color:#fff; line-height:1.3;"></div>
             <div id="menu-partido-liga" style="font-size:0.78rem; color:var(--text-muted); margin-top:3px;"></div>
         </div>
 
@@ -455,6 +455,7 @@
         </div>
 
         <button class="btn" onclick="arrancarDesdeSala()">¡Jugar ahora! 🚀</button>
+        <button class="btn btn-secondary" style="margin-top:8px;" onclick="volverAlMenu()">← Volver al menú</button>
         <div id="sala-espera-msg" style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;"></div>
     </div>
 
@@ -510,6 +511,7 @@
         <h1>Buscando partido...</h1>
         <div class="loader"></div>
         <p id="detectando-msg">Consultando partidos en vivo o identificando el último finalizado...</p>
+        <button class="btn btn-secondary" style="margin-top:16px;" onclick="volverAlMenu()">← Cancelar</button>
     </div>
 
     <div id="scr-partido" class="screen">
@@ -527,6 +529,8 @@
 
         <button class="btn" onclick="confirmarPartido()">¡Jugar con este partido! 🎮</button>
         <button class="btn btn-secondary" onclick="cambiarPartido()">🔄 Detectar otro partido</button>
+        <button class="btn btn-secondary" onclick="volverAlMenu()">← Volver al menú</button>
+        <div id="error-trivia-msg" style="display:none;color:var(--error);font-size:0.85rem;margin-top:12px;padding:10px;background:rgba(239,68,68,0.1);border-radius:8px;"></div>
     </div>
 
     <div id="scr-loading" class="screen">
@@ -656,20 +660,16 @@ async function cargarUltimoPartidoEnMenu() {
         const nombre = document.getElementById('menu-partido-nombre');
         const liga = document.getElementById('menu-partido-liga');
 
-        // La descripción viene como "Ronda: EquipoA goles-goles EquipoB"
-        // Mostramos la parte del partido (después del ":") como título principal
+        // Desc viene como "Ronda: EquipoA 2-1 EquipoB" → mostrar "EquipoA 2-1 EquipoB" grande
         let desc = ultimo.descripcion || ultimo.clave || '';
         let partidoNombre = desc;
         const matchPartido = desc.match(/:\s*(.+)$/);
-        if (matchPartido) {
-            partidoNombre = matchPartido[1].trim();
-        }
+        if (matchPartido) partidoNombre = matchPartido[1].trim();
         nombre.innerText = partidoNombre;
 
         const tipoTexto = ultimo.tipo === 'en_curso' ? '🔴 EN CURSO' : '✅ Finalizado';
-        // Mostrar también la ronda/competición si viene en la descripción
         const matchRonda = desc.match(/^(.+?):/);
-        const rondaTexto = matchRonda ? ` · ${matchRonda[1].trim()}` : '';
+        const rondaTexto = matchRonda ? ' · ' + matchRonda[1].trim() : '';
         liga.innerText = tipoTexto + rondaTexto;
         card.style.display = 'block';
     } catch (_) {}
@@ -735,29 +735,27 @@ async function seleccionarLiga(ligaId, ligaNombre, ligaSeason) {
     cambiarPantalla('scr-detectando');
     document.getElementById('detectando-msg').innerText = `Buscando último partido disponible de ${ligaNombre}...`;
 
+    // Ocultar error previo
+    const errorBox = document.getElementById('error-trivia-msg');
+    if (errorBox) errorBox.style.display = 'none';
+
     try {
         let url = `/api/mundial-info?liga_id=${ligaId}`;
         if (ligaSeason) url += `&season=${ligaSeason}`;
         const res = await fetch(url);
-        if (!res.ok) throw new Error('Error obteniendo el fixture');
+        if (!res.ok) throw new Error(`HTTP ${res.status} al obtener el partido`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        // Guardar liga_id y season en el partido para usarlo al generar la trivia
+        // Guardar liga_id y season para usarlos al generar la trivia
         partidoActual = { ...data, liga_id: ligaId, season: ligaSeason };
         mostrarConfirmacionPartido(partidoActual);
     } catch (err) {
         console.error('Error cargando partido de liga:', err);
-        // Fallback: trivia genérica de la liga sin clave de partido específico
-        partidoActual = {
-            liga_id: ligaId,
-            season: ligaSeason,
-            clave: '',
-            descripcion: `Último encuentro disputado en ${ligaNombre}`,
-            tipo: 'finalizado',
-            contexto: `Trivia de preguntas sobre estadísticas y eventos recientes de la competición ${ligaNombre}.`,
-            desde_cache: false
-        };
-        mostrarConfirmacionPartido(partidoActual);
+        // Volver al menú mostrando el error en lugar de inventar un partido
+        cambiarPantalla('scr-ligas');
+        const errorDiv = document.getElementById('ligas-error');
+        errorDiv.innerText = '⚠️ No se pudo obtener el partido de ' + ligaNombre + ': ' + err.message;
+        errorDiv.style.display = 'block';
     }
 }
 
@@ -805,62 +803,65 @@ async function confirmarPartido() {
     indicePreguntaActual = 0;
     document.getElementById('local-score').innerText = '0 pts';
 
-    // Construir URL de trivias: priorizar clave del partido, luego liga_id
-    const clave = (partidoActual && partidoActual.clave) ? partidoActual.clave : '';
+    // Construir URL de trivias: priorizar clave, luego liga_id + season
+    const clave  = (partidoActual && partidoActual.clave)   ? partidoActual.clave   : '';
     const ligaId = (partidoActual && partidoActual.liga_id) ? partidoActual.liga_id : null;
+    const season = (partidoActual && partidoActual.season)  ? partidoActual.season  : null;
 
     let url;
     if (clave && clave !== '') {
         url = `/api/trivias?clave=${encodeURIComponent(clave)}`;
     } else if (ligaId) {
         url = `/api/trivias?liga_id=${encodeURIComponent(ligaId)}`;
+        if (season) url += `&season=${season}`;
     } else {
         url = `/api/trivias`;
     }
 
     try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error('Error de servidor');
+        if (!res.ok) throw new Error(`Error de servidor (${res.status})`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
+        if (!data.preguntas || data.preguntas.length === 0) {
+            throw new Error('La IA no generó preguntas para este partido.');
+        }
 
-        preguntasPartida = (data.preguntas && data.preguntas.length > 0)
-            ? data.preguntas
-            : muestraAleatoria(BANCO_NATIVO, 6);
+        preguntasPartida = data.preguntas;
 
         if (data.clave) {
             partidoActual = partidoActual || {};
             partidoActual.clave = data.clave;
         }
-        if (data.partido) {
-            partidoActual.descripcion = data.partido;
-        }
+        if (data.partido) partidoActual.descripcion = data.partido;
 
-        const label = document.getElementById('partido-label-quiz');
-        const header = document.getElementById('quiz-partido-header');
+        const label       = document.getElementById('partido-label-quiz');
+        const header      = document.getElementById('quiz-partido-header');
         const headerBadge = document.getElementById('quiz-partido-badge-label');
         const headerTitulo = document.getElementById('quiz-partido-titulo');
 
-        if (data.partido) {
+        const nombrePartido = data.partido || (partidoActual && partidoActual.descripcion) || '';
+        if (nombrePartido) {
             const icono = data.tipo === 'en_curso' ? '🔴 EN CURSO' : '⚽';
-            label.innerText = `${icono} ${data.partido}`;
-            // Header visible arriba del quiz
+            label.innerText = `${icono} ${nombrePartido}`;
             headerBadge.innerText = data.tipo === 'en_curso' ? '🔴 Partido en curso' : '⚽ Partido';
-            headerTitulo.innerText = data.partido;
-            header.style.display = 'block';
-        } else if (partidoActual && partidoActual.descripcion) {
-            headerBadge.innerText = '⚽ Partido';
-            headerTitulo.innerText = partidoActual.descripcion;
+            headerTitulo.innerText = nombrePartido;
             header.style.display = 'block';
         }
 
+        cambiarPantalla('scr-quiz');
+        renderizarPreguntaActual();
+
     } catch (err) {
         console.error('Error cargando trivia:', err);
-        preguntasPartida = muestraAleatoria(BANCO_NATIVO, 6);
+        // Mostrar error visible en lugar de usar banco hardcodeado de Qatar 2022
+        cambiarPantalla('scr-partido');
+        const errorBox = document.getElementById('error-trivia-msg');
+        if (errorBox) {
+            errorBox.style.display = 'block';
+            errorBox.innerText = '❌ ' + err.message;
+        }
     }
-
-    cambiarPantalla('scr-quiz');
-    renderizarPreguntaActual();
 }
 
 // ─── PASO 3b: Cambiar partido → limpiar y volver a detectar ──────────────────
