@@ -1109,10 +1109,11 @@ async def debug_ligas():
 
 
 @app.get("/api/mundial-info")
-async def mundial_info(liga_id: int = None):
+async def mundial_info(liga_id: int = None, season: int = None):
     """
     Devuelve info del partido actual (el "ultimo" del historial).
     - Si se pasa liga_id, busca el último partido de esa liga específica.
+    - Si se pasa season, lo usa directamente (evita probar temporadas equivocadas).
     - Si no se pasa, usa el Mundial 2026 (probando IDs 1 y 732).
     SIEMPRE verifica primero contra la API si hay un partido más reciente,
     comparando contra el ultimo partido guardado en el HISTORIAL.
@@ -1131,7 +1132,7 @@ async def mundial_info(liga_id: int = None):
 
     clave_actual = ultimo_guardado.get("clave", "")
 
-    ultimo_partido_espn = obtener_ultimo_partido_api_football(league_id=liga_id)
+    ultimo_partido_espn = obtener_ultimo_partido_api_football(league_id=liga_id, season=season)
 
     hay_partido_nuevo = bool(
         ultimo_partido_espn and ultimo_partido_espn.get("clave")
