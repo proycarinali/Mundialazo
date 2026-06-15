@@ -686,16 +686,19 @@ async function seleccionarLiga(ligaId, ligaNombre) {
     document.getElementById('detectando-msg').innerText = `Buscando último partido disponible de ${ligaNombre}...`;
 
     try {
-        const res = await fetch(`/api/mundial-info?liga_id=${ligaId}`); 
+        const res = await fetch(`/api/mundial-info?liga_id=${ligaId}`);
         if (!res.ok) throw new Error('Error obteniendo el fixture');
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        partidoActual = data;
-        mostrarConfirmacionPartido(data);
+        // Guardar liga_id en el partido para usarlo al generar la trivia
+        partidoActual = { ...data, liga_id: ligaId };
+        mostrarConfirmacionPartido(partidoActual);
     } catch (err) {
         console.error('Error cargando partido de liga:', err);
+        // Fallback: trivia genérica de la liga sin clave de partido específico
         partidoActual = {
-            clave: `Liga_${ligaId}_Partido`,
+            liga_id: ligaId,
+            clave: '',
             descripcion: `Último encuentro disputado en ${ligaNombre}`,
             tipo: 'finalizado',
             contexto: `Trivia de preguntas sobre estadísticas y eventos recientes de la competición ${ligaNombre}.`,
@@ -748,10 +751,21 @@ async function confirmarPartido() {
     puntosLocal = 0;
     indicePreguntaActual = 0;
     document.getElementById('local-score').innerText = '0 pts';
-    const clave = partidoActual ? partidoActual.clave : '';
+
+    // Construir URL de trivias: priorizar clave del partido, luego liga_id
+    const clave = (partidoActual && partidoActual.clave) ? partidoActual.clave : '';
+    const ligaId = (partidoActual && partidoActual.liga_id) ? partidoActual.liga_id : null;
+
+    let url;
+    if (clave && clave !== '') {
+        url = `/api/trivias?clave=${encodeURIComponent(clave)}`;
+    } else if (ligaId) {
+        url = `/api/trivias?liga_id=${encodeURIComponent(ligaId)}`;
+    } else {
+        url = `/api/trivias`;
+    }
 
     try {
-        const url = `/api/trivias?clave=${encodeURIComponent(clave)}`;
         const res = await fetch(url);
         if (!res.ok) throw new Error('Error de servidor');
         const data = await res.json();
@@ -786,9 +800,15 @@ async function confirmarPartido() {
 
 // ─── PASO 3b: Cambiar partido → limpiar y volver a detectar ──────────────────
 async function cambiarPartido() {
-    try { await fetch('/api/trivias?refresh=true&clave=__reset__'); } catch (_) {}
-    partidoActual = null;
-    await arrancarDeteccion();
+    const clave = (partidoActual && partidoActual.clave) ? partidoActual.clave : '__reset__';
+    try { await fetch(`/api/trivias?refresh=true&clave=${encodeURIComponent(clave)}`); } catch (_) {}
+    // Si hay liga seleccionada, volver al selector de ligas para re-detectar en esa liga
+    if (ligaSeleccionada) {
+        await seleccionarLiga(ligaSeleccionada.id, ligaSeleccionada.nombre);
+    } else {
+        partidoActual = null;
+        await arrancarDeteccion();
+    }
 }
 
 // ─── Helpers quiz ─────────────────────────────────────────────────────────────
@@ -965,7 +985,12 @@ function renderizarJugadoresEspera(jugadores) {
 
 async function arrancarDesdeSala() {
     document.getElementById('sala-espera-msg').innerText = 'Iniciando juego...';
-    await arrancarDeteccion();
+    // Si ya hay una liga seleccionada desde antes de entrar a la sala, ir directo
+    if (ligaSeleccionada && partidoActual) {
+        await confirmarPartido();
+    } else {
+        await arrancarDeteccion();
+    }
 }
 
 async function guardarResultadoEnSala(puntaje, correctas, total) {
@@ -1027,7 +1052,17 @@ async function irAHistorial() {
 }
 
 function seleccionarPartidoHistorial(clave) {
-    partidoActual = { clave: clave, desde_cache: true, tipo: 'finalizado', descripcion: '', contexto: '' };
+    // Para partidos del historial la clave ya identifica el fixture exacto
+    // La liga_id se puede inferir del prefijo de la clave (ej: "1_12345" → liga 1)
+    const ligaIdFromClave = clave ? parseInt(clave.split('_')[0]) || null : null;
+    partidoActual = {
+        clave: clave,
+        liga_id: ligaIdFromClave,
+        desde_cache: true,
+        tipo: 'finalizado',
+        descripcion: '',
+        contexto: ''
+    };
     confirmarPartido();
 }
 
