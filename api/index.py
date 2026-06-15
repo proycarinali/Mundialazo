@@ -1,4 +1,4 @@
-import sys
+mport sys
 import asyncio
 import json
 import os
@@ -1274,6 +1274,92 @@ async def obtener_trivias(clave: str = "", refresh: bool = False, liga_id: int =
     }
  
  
+def _generar_preguntas_mundial_historico() -> list:
+    """
+    Genera 10 preguntas de trivia sobre todos los Mundiales de fútbol en general
+    (no sobre un partido específico), usando la IA configurada.
+    Se usa cuando no hay Mundial activo en la API.
+    """
+    if not grok_client and not gemini_client:
+        print("[MUNDIAL-HIST] No hay IA configurada, devolviendo banco fallback.")
+        return []
+
+    prompt = (
+        "Sos un experto en historia de los Mundiales de Fútbol FIFA. "
+        "Generá EXACTAMENTE 10 preguntas de trivia variadas y desafiantes sobre la historia "
+        "de TODOS los Mundiales de fútbol (desde Uruguay 1930 hasta Qatar 2022). "
+        "Las preguntas deben cubrir distintos mundiales, no siempre el mismo. "
+        "Incluí preguntas sobre: campeones, goleadores históricos, récords, estadios, "
+        "jugadores legendarios, datos curiosos, resultados memorables, sedes, árbitros, etc. "
+        "Asegurate de que TODAS las respuestas correctas sean 100% verídicas y verificables. "
+        "Cada pregunta debe tener exactamente 3 opciones (una correcta y dos incorrectas plausibles). "
+        "FORMATO: No uses comillas dobles (\") dentro de los textos. Usá comillas simples (') si necesitás citar algo.\n\n"
+        "Formato de salida SOLO JSON sin texto adicional ni backticks:\n"
+        "{\"preguntas\": [{\"pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}]}"
+    )
+
+    intentos = []
+    if grok_client:
+        intentos.append((grok_client, "llama-3.3-70b-versatile", "Groq"))
+    if gemini_client:
+        intentos.append((gemini_client, "gemini-2.5-flash", "Gemini"))
+
+    raw = None
+    for client, model, nombre in intentos:
+        try:
+            raw = _llamar_ia(client, model, prompt, nombre)
+            break
+        except Exception as e:
+            print(f"[MUNDIAL-HIST] {nombre} falló: {e}")
+
+    if not raw:
+        return []
+
+    texto = raw.replace("```json", "").replace("```", "").strip()
+    try:
+        parsed = json.loads(texto)
+    except json.JSONDecodeError:
+        import re
+        texto_reparado = re.sub(
+            r'(?<=[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,.\-])"(?=[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ ,.\-])',
+            r'\\"', texto
+        )
+        try:
+            parsed = json.loads(texto_reparado)
+        except json.JSONDecodeError:
+            ultimo_corte = texto.rfind("}")
+            texto_cortado = texto[:ultimo_corte + 1]
+            if not texto_cortado.rstrip().endswith("]}"):
+                texto_cortado = texto_cortado.rstrip().rstrip(",") + "]}"
+            parsed = json.loads(texto_cortado)
+
+    return parsed.get("preguntas", [])
+
+
+@app.get("/api/trivias-mundial-historico")
+async def trivias_mundial_historico():
+    """
+    Genera 10 preguntas de trivia sobre la historia de todos los Mundiales
+    de fútbol. Se llama cuando el usuario elige 'Mundial' pero no hay
+    fixtures activos en la API en este momento.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        preguntas = await loop.run_in_executor(None, _generar_preguntas_mundial_historico)
+        if not preguntas:
+            return {"error": "No se pudieron generar preguntas históricas del Mundial. Verificá la configuración de la IA."}
+        return {
+            "preguntas": preguntas,
+            "total_banco": len(preguntas),
+            "clave": "mundial_historico",
+            "partido": "Historia de los Mundiales FIFA",
+            "tipo": "historico",
+            "desde_cache": False,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
 @app.get("/api/test")
 async def probar_apis():
     partido = cargar_partido_rag()
