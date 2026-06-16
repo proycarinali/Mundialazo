@@ -1477,3 +1477,20 @@ async def diagnostico_partido(league_id: int = None, season: int = None):
 
     return informe
 
+# =============================================================================
+# EJECUCIÓN COMPATIBLE CON LOGS DE RAILWAY
+# =============================================================================
+try:
+    print("[RAILWAY-TEST] Iniciando diagnóstico de API Football...")
+    
+    # Inyección segura de variables por si Railway inicializa en diferente orden
+    if "MUNDIAL_2026_IDS" not in globals():
+        MUNDIAL_2026_IDS = [1, 732]
+    if "API_FOOTBALL_BASE" not in globals():
+        API_FOOTBALL_BASE = "https://api-sports.io"
+        
+    # Ejecutamos el test integrado
+    verificar_estado_api_test()
+    
+except Exception as e:
+    print(f"[RAILWAY-TEST] Error al lanzar el test automático: {e}")
