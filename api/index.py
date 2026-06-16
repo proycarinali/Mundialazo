@@ -258,8 +258,8 @@ MUNDIAL_2026_SEASON = 2026
 
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
-    Obtiene de forma estricta el último partido real finalizado del Mundial 2026
-    desde la API oficial de Football (api-sports.io), corrigiendo el filtro de estado.
+    Obtiene el último partido de la API oficial de Football usando la temporada 
+    correcta para el Mundial (2026) y calculando la temporada en curso para las ligas locales.
     """
     if not FOOTBALL_API_KEY:
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
@@ -270,81 +270,78 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         "x-rapidapi-key": FOOTBALL_API_KEY,
     }
 
-    try:
-        fixture_data = None
-        tipo = None
-        
-        # 1. RESOLUCIÓN DE VARIABLE: Evitamos enviar objetos tipo lista en los parámetros URL
-        if league_id is None:
-            league_id_usado = MUNDIAL_2026_IDS if isinstance(MUNDIAL_2026_IDS, list) else MUNDIAL_2026_IDS
-            seasons_a_probar = [MUNDIAL_2026_SEASON]
-        elif isinstance(league_id, list):
-            league_id_usado = league_id
-            seasons_a_probar = [MUNDIAL_2026_SEASON]
-        else:
-            league_id_usado = league_id
-            seasons_a_probar = [season] if season is not None else [MUNDIAL_2026_SEASON]
+    # 1. RESOLUCIÓN DE VARIABLE Y DETERMINACIÓN DE TEMPORADA EN CURSO
+    # Desempaquetamos correctamente el ID si viene en formato de lista global
+    if league_id is None:
+        league_id_usado = MUNDIAL_2026_IDS if isinstance(MUNDIAL_2026_IDS, list) else MUNDIAL_2026_IDS
+    elif isinstance(league_id, list):
+        league_id_usado = league_id
+    else:
+        league_id_usado = league_id
 
-        for s in seasons_a_probar:
-            if fixture_data:
-                break
-                
-            # CORRECCIÓN CLAVE: Le pedimos a la API los últimos partidos finalizados de forma explícita.
-            # Al pasar 'status': 'FT' junto con 'last': 1, la API no se confunde con los partidos en vivo 
-            # de la jornada del Mundial y te devuelve el último resultado consolidado.
+    # Verificamos si la consulta apunta al Mundial
+    es_mundial = (league_id_usado == 1 or league_id_usado == 732 or str(league_id_usado) in str(MUNDIAL_2026_IDS))
+
+    if es_mundial:
+        # El Mundial exige estrictamente su año calendario corriente
+        season_automatica = 2026
+    else:
+        # CORRECCIÓN DE TEMPORADA: Si pasan una temporada la usamos, 
+        # si no, la API exige el año de inicio del campeonato actual.
+        from datetime import datetime
+        anio_actual = datetime.now().year
+        # Si estamos en la primera mitad del año, muchas ligas curadas corresponden a la temporada del año anterior
+        season_automatica = season if season is not None else (anio_actual if datetime.now().month > 6 else anio_actual - 1)
+
+    fixture_data = None
+    tipo = None
+
+    try:
+        # PASO 1: Intentar buscar si hay algún partido corriendo EN VIVO en este instante
+        try:
+            res_live = requests.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                params={"league": int(league_id_usado), "season": int(season_automatica), "live": "all"},
+                headers=headers,
+                timeout=5,
+            )
+            if res_live.status_code == 200:
+                response_list = res_live.json().get("response", [])
+                if response_list and len(response_list) > 0:
+                    fixture_data = response_list[0]  # Extraemos el objeto diccionario limpio
+                    tipo = "en_curso"
+                    print(f"[API-FOOTBALL] Partido EN VIVO encontrado ✅ Liga: {league_id_usado} Temp: {season_automatica}")
+        except Exception as e:
+            print(f"[API-FOOTBALL] Error buscando partidos en vivo: {e}")
+
+        # PASO 2: Si no hay en vivo, buscar de forma directa el último partido finalizado (Historial)
+        if not fixture_data:
             try:
                 res_fin = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={
                         "league": int(league_id_usado), 
-                        "season": int(s), 
-                        "status": "FT",  # Solo partidos terminados en los 90 minutos
-                        "last": 1        # Forzamos que traiga solo el último
+                        "season": int(season_automatica), 
+                        "last": 1  # Forzamos que traiga el último registro cronológico real de la base de datos
                     },
                     headers=headers,
-                    timeout=6,
+                    timeout=5,
                 )
-                
                 if res_fin.status_code == 200:
                     response_list = res_fin.json().get("response", [])
                     if response_list and len(response_list) > 0:
-                        fixture_data = response_list
+                        fixture_data = response_list[0]  # Extraemos el diccionario del índice 0
                         tipo = "finalizado"
-                        print(f"[API-FOOTBALL] Último partido FT capturado correctamente ✅ Liga: {league_id_usado}")
-                        break
+                        print(f"[API-FOOTBALL] Último partido finalizado capturado ✅ Liga: {league_id_usado} Temp: {season_automatica}")
             except Exception as e:
-                print(f"[API-FOOTBALL] Error buscando partido finalizado FT: {e}")
+                print(f"[API-FOOTBALL] Error buscando último partido finalizado: {e}")
 
-            # FALLBACK DE ESTADO (Prórrogas): Si el último partido se definió en tiempo extra, el estado es AET
-            if not fixture_data:
-                try:
-                    res_aet = requests.get(
-                        f"{API_FOOTBALL_BASE}/fixtures",
-                        params={
-                            "league": int(league_id_usado), 
-                            "season": int(s), 
-                            "status": "AET", # Partidos terminados en prórroga/penales
-                            "last": 1
-                        },
-                        headers=headers,
-                        timeout=6,
-                    )
-                    if res_aet.status_code == 200:
-                        response_list = res_aet.json().get("response", [])
-                        if response_list and len(response_list) > 0:
-                            fixture_data = response_list
-                            tipo = "finalizado"
-                            print(f"[API-FOOTBALL] Último partido AET capturado correctamente ✅ Liga: {league_id_usado}")
-                            break
-                except Exception as e:
-                    print(f"[API-FOOTBALL] Error buscando partido finalizado AET: {e}")
-
-        # Si la API sigue sin responder, salimos de forma segura para no romper el hilo de FastAPI
+        # Si la API no retorna ningún registro con la temporada calculada
         if not fixture_data:
-            print(f"[API-FOOTBALL] La API no retornó ningún partido finalizado para la liga {league_id_usado}")
+            print(f"[API-FOOTBALL] Error: Sin partidos devueltos para liga={league_id_usado} en temporada={season_automatica}")
             return {}
 
-        # 2. EXTRACCIÓN DEL DICCIONARIO INTERNO (Ya es un objeto JSON puro válido)
+        # 2. EXTRACCIÓN SEGURA DE LAS LLAVES DEL JSON DE LA API
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
         teams = fixture_data.get("teams", {})
@@ -371,7 +368,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
         clave = f"{league_id_usado}_{fixture_id}"
         
-        # Mapeo limpio de eventos para que se rendericen los goles y tarjetas
+        # Mapeo de eventos (goles, tarjetas) del partido
         eventos_texto = []
         if isinstance(events, list):
             for ev in events[:20]:
@@ -401,7 +398,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         }
         
     except Exception as e:
-        print(f"[API-FOOTBALL] Error crítico inesperado en el procesamiento: {e}")
+        print(f"[API-FOOTBALL] Excepción inesperada en procesamiento: {e}")
         return {}
 
 
