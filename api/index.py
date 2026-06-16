@@ -258,8 +258,8 @@ MUNDIAL_2026_SEASON = 2026
 
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
-    Obtiene el último partido disputado accediendo por el fixture cronológico del día
-    para evadir el bloqueo de derechos de temporada de la API de Football.
+    Obtiene el último partido real disputado del Mundial o de cualquier otra liga
+    consultando el calendario cronológico inverso para evadir bloqueos de la API.
     """
     if not FOOTBALL_API_KEY:
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
@@ -280,66 +280,63 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
 
     es_mundial = (league_id_usado == 1 or league_id_usado == 732 or str(league_id_usado) in str(MUNDIAL_2026_IDS))
 
-    # Determinamos la temporada según el torneo (Mundial o Liga Local)
+    # Determinamos la temporada según corresponda
     from datetime import datetime, timedelta
-    fecha_hoy = datetime.now().strftime("%Y-%m-%d") # Fecha actual en curso (2026-06-16)
     
     if es_mundial:
         season_automatica = 2026
     else:
+        # Para ligas locales, si no se especifica, calculamos el año de inicio de la temporada actual
         anio_actual = datetime.now().year
         season_automatica = season if season is not None else (anio_actual if datetime.now().month > 6 else anio_actual - 1)
 
     fixture_data = None
     tipo = "finalizado"
 
+    # 2. BÚSQUEDA CRONOLÓGICA INVERSA UNIVERSAL
+    # Revisamos desde hoy hasta 7 días hacia atrás para cubrir fines de semana y recesos de cualquier liga
     try:
-        # NUEVA FORMA DE ACCESO: Consultamos los partidos por fecha exacta para esquivar el bloqueo del parámetro 'last'
-        try:
+        for i in range(8):
+            fecha_consulta = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            
             params = {
                 "league": int(league_id_usado),
                 "season": int(season_automatica),
-                "date": fecha_hoy
+                "date": fecha_consulta
             }
-            print(f"[API-FOOTBALL] Accediendo de forma segura por fecha: {params}")
+            
+            print(f"[API-FOOTBALL] Buscando partidos en {fecha_consulta} para liga {league_id_usado}...")
             res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=6)
             
             if res.status_code == 200:
                 response_list = res.json().get("response", [])
                 
-                # Si hoy hay partidos, extraemos el último que haya terminado o esté en juego
                 if response_list and len(response_list) > 0:
-                    # Ordenamos cronológicamente por fecha/hora
+                    # Ordenamos de más reciente a más antiguo dentro del mismo día
                     response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
-                    fixture_data = response_list[0]
-                    status_short = fixture_data.get("fixture", {}).get("status", {}).get("short", "")
-                    tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
-        except Exception as e:
-            print(f"[API-FOOTBALL] Error en acceso por fecha de hoy: {e}")
+                    
+                    # Filtramos para asegurarnos de tomar un partido que ya terminó (FT/AET/PEN) o que esté corriendo en vivo (1H/2H/HT)
+                    for part in response_list:
+                        status_short = part.get("fixture", {}).get("status", {}).get("short", "")
+                        if status_short in ["FT", "AET", "PEN", "1H", "2H", "HT", "ET", "P"]:
+                            fixture_data = part
+                            tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
+                            break
+                    
+                    if fixture_data:
+                        print(f"[API-FOOTBALL] ¡Éxito! Último partido capturado el día {fecha_consulta}")
+                        break
+                        
+    except Exception as e:
+        print(f"[API-FOOTBALL] Error en el bucle de acceso por fecha: {e}")
 
-        # FALLBACK CRONOLÓGICO: Si hoy no hubo partidos de esa liga, consultamos los últimos días
-        if not fixture_data:
-            try:
-                # Buscamos los partidos disputados ayer o días anteriores sin usar el parámetro 'last' trabado
-                fecha_ayer = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-                params_ayer = {"league": int(league_id_usado), "season": int(season_automatica), "date": fecha_ayer}
-                
-                res_ayer = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params_ayer, headers=headers, timeout=6)
-                if res_ayer.status_code == 200:
-                    response_list = res_ayer.json().get("response", [])
-                    if response_list and len(response_list) > 0:
-                        response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
-                        fixture_data = response_list[0]
-                        tipo = "finalizado"
-            except Exception as e:
-                print(f"[API-FOOTBALL] Error en fallback cronológico: {e}")
+    # Si tras revisar la semana completa la API no devuelve nada accesible
+    if not fixture_data:
+        print(f"[API-FOOTBALL] Alerta: No se encontraron partidos jugados recientes para la liga={league_id_usado}")
+        return {}
 
-        # Si el acceso alternativo sigue denegado por restricciones absolutas de la cuenta
-        if not fixture_data:
-            print(f"[API-FOOTBALL] Alerta: No se encontraron partidos accesibles para liga={league_id_usado} en la jornada actual.")
-            return {}
-
-        # 2. EXTRACCIÓN SEGURA DEL DICCIONARIO INTERNO RECOLECTADO
+    # 3. EXTRACCIÓN SEGURA DE DATOS COMÚN PARA TODAS LAS LIGAS
+    try:
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
         teams = fixture_data.get("teams", {})
@@ -366,7 +363,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
         clave = f"{league_id_usado}_{fixture_id}"
         
-        # Procesamiento limpio de la cadena de eventos del encuentro
+        # Procesamiento estándar de goles/tarjetas
         eventos_texto = []
         if isinstance(events, list):
             for ev in events[:20]:
@@ -394,9 +391,8 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             "league_id": league_id_usado,
             "season": league.get("season"),
         }
-        
     except Exception as e:
-        print(f"[API-FOOTBALL] Excepción general en procesamiento alternativo: {e}")
+        print(f"[API-FOOTBALL] Error parseando el JSON devuelto: {e}")
         return {}
 
 
