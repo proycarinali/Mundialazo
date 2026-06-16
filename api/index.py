@@ -282,6 +282,10 @@ import os
 import requests
 from datetime import datetime
 
+import os
+import requests
+from datetime import datetime
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido usando tu lógica original de reintentos.
@@ -372,7 +376,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             id_error = league_id if league_id is not None else 1
             id_error = int(id_error)
             
-            # LÍNEA CORREGIDA AQUÍ (Mapeo limpio de IDs)
             if (isinstance(MUNDIAL_2026_IDS, list) and id_error in MUNDIAL_2026_IDS) or str(id_error) == str(MUNDIAL_2026_IDS):
                 nombre_liga_humano = "el Mundial de la FIFA"
             elif id_error == 39:
@@ -390,6 +393,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 return {"tipo_contenido": "error", "contexto": "No hay partidos y la IA no tiene credenciales."}
 
             try:
+                # URL oficial corregida de Google Gemini
                 url_gemini = f"https://googleapis.com{gemini_key}"
                 
                 prompt = f"""
@@ -482,11 +486,12 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
 
-      return {
+        return {
             "tipo_contenido": "partido_real",
-            "fixture_id": fix.get("id"),
-            "descripcion": f"{league.get('round', '')}: {teams.get('home', {}).get('name', '')} {goals.get('home', '-')}-{goals.get('away', '-')} {teams.get('away', {}).get('name', '')}",
-            "tipo": tipo,
+            "fixture_id":  fixture_id,
+            "clave":       clave,
+            "descripcion": descripcion,
+            "tipo":        tipo,
             "league_id": league_id_exitoso,
             "season": 2026 if es_simulado else league.get("season"),
         }
