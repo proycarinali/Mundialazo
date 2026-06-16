@@ -265,23 +265,6 @@ from datetime import datetime, timedelta
 
 import os
 from openai import OpenAI  # Asegúrate de que esta importación sea válida en tu entorno
-
-import os
-import requests
-from datetime import datetime, timedelta
-
-import os
-import requests
-from datetime import datetime, timedelta
-
-import os
-import requests
-from datetime import datetime
-
-import os
-import requests
-from datetime import datetime
-
 import os
 import requests
 from datetime import datetime
@@ -393,8 +376,9 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 return {"tipo_contenido": "error", "contexto": "No hay partidos y la IA no tiene credenciales."}
 
             try:
-                # URL oficial corregida de Google Gemini
-                url_gemini = f"https://googleapis.com{gemini_key}"
+                # Estructuración limpia y segura de la URL y parámetros
+                url_gemini = "https://googleapis.com"
+                params_gemini = {"key": gemini_key}
                 
                 prompt = f"""
                 Genera una trivia interactiva de 3 preguntas interesantes y avanzadas sobre {nombre_liga_humano}.
@@ -416,11 +400,18 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 """
                 
                 payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
-                res_gemini = requests.post(url_gemini, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+                
+                res_gemini = requests.post(
+                    url_gemini, 
+                    params=params_gemini, 
+                    json=payload, 
+                    headers={"Content-Type": "application/json"}, 
+                    timeout=10
+                )
                 
                 if res_gemini.status_code == 200:
                     import json
-                    return json.loads(res_gemini.json()['candidates']['content']['parts']['text'])
+                    return json.loads(res_gemini.json()['candidates'][0]['content']['parts'][0]['text'])
                 else:
                     raise Exception(f"API de Google respondió con código {res_gemini.status_code}")
             except Exception as e:
@@ -486,17 +477,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
 
-        return {
-            "tipo_contenido": "partido_real",
-            "fixture_id":  fixture_id,
-            "clave":       clave,
-            "descripcion": descripcion,
-            "tipo":        tipo,
-            "league_id": league_id_exitoso,
-            "season": 2026 if es_simulado else league.get("season"),
-        }
-    except Exception:
-        return {}
+
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
 # =============================================================================
