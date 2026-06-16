@@ -1239,3 +1239,56 @@ async def test_football_key():
         diagnostico["error"] = str(e)
         
     return diagnostico
+@app.get("/api/test-mundial")
+async def test_mundial():
+    """
+    Endpoint de testeo para ver la respuesta exacta de la API
+    para el Mundial 2026 y descubrir por qué falla la extracción.
+    """
+    if not FOOTBALL_API_KEY:
+        return {"error": "FOOTBALL_API_KEY no configurada"}
+        
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": FOOTBALL_API_KEY,
+    }
+    
+    reporte_diagnostico = {}
+    
+    # Probamos los dos IDs típicos del mundial configurados en tu código
+    ids_a_probar = [1, 732]
+    
+    for wid in ids_a_probar:
+        reporte_diagnostico[f"league_id_{wid}"] = {}
+        try:
+            # 1. Testear consulta de último partido
+            url = f"{API_FOOTBALL_BASE}/fixtures"
+            params = {"league": wid, "season": 2026, "last": 1}
+            
+            res = requests.get(url, params=params, headers=headers, timeout=6)
+            
+            if res.status_code == 200:
+                json_data = res.json()
+                lista_partidos = json_data.get("response", [])
+                
+                reporte_diagnostico[f"league_id_{wid}"]["status_http"] = 200
+                reporte_diagnostico[f"league_id_{wid}"]["errores_api"] = json_data.get("errors")
+                reporte_diagnostico[f"league_id_{wid}"]["cantidad_partidos_devueltos"] = len(lista_partidos)
+                
+                if lista_partidos:
+                    # Si devuelve algo, guardamos una muestra simplificada para ver la estructura exacta
+                    partido_ejemplo = lista_partidos[0]
+                    reporte_diagnostico[f"league_id_{wid}"]["estructura_correcta"] = {
+                        "fixture_id": partido_ejemplo.get("fixture", {}).get("id"),
+                        "teams": partido_ejemplo.get("teams"),
+                        "goals": partido_ejemplo.get("goals")
+                    }
+                else:
+                    reporte_diagnostico[f"league_id_{wid}"]["causa_vacio"] = "La API respondió OK, pero la lista de partidos vino vacía. Posiblemente la temporada 2026 de este ID de liga no tiene partidos finalizados aún en su base de datos."
+            else:
+                reporte_diagnostico[f"league_id_{wid}"]["error_http"] = f"Código de error del servidor: {res.status_code}"
+                
+        except Exception as e:
+            reporte_diagnostico[f"league_id_{wid}"]["excepcion"] = str(e)
+            
+    return reporte_diagnostico
