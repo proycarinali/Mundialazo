@@ -475,17 +475,16 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
 
-    return {
+        return {
             "tipo_contenido": "partido_real",
-            "fixture_id":  fixture_id,
-            "clave":       clave,
+            "fixture_id": fixture_id,
+            "clave": clave,
             "descripcion": descripcion,
-            "tipo":        tipo,
-            "contexto":    contexto,
-            "league_id":   league_id_usado,
-            "season":      fixture_data.get("league", {}).get("season"),
+            "tipo": tipo,
+            "contexto": contexto,
+            "league_id": league_id_usado,
+            "season": fixture_data.get("league", {}).get("season"),
         }
-
     except Exception as e:
         print(f"[API-FOOTBALL] Excepción inesperada en el flujo maestro: {e}")
         return {}
