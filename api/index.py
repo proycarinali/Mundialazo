@@ -274,23 +274,26 @@ from datetime import datetime, timedelta
 import requests
 from datetime import datetime, timedelta
 
+import os
+import requests
+from datetime import datetime, timedelta
+from google import genai
+from google.genai import types
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
-    Obtiene el último partido real disputado consultando el calendario cronológico inverso.
-    Maneja listas de IDs de forma segura y evita el bloqueo de parámetros premium del plan Free.
+    Intenta obtener el último partido de la API. Si no encuentra datos debido al plan Free,
+    conecta con Gemini AI para generar una trivia interactiva de la liga o mundial consultado.
     """
     global FOOTBALL_API_KEY, MUNDIAL_2026_IDS, API_FOOTBALL_BASE
     
-    if not FOOTBALL_API_KEY:
-        print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
-        return {}
+    # Variables de control
+    fixture_data = None
+    tipo = "finalizado"
+    league_id_exitoso = None
+    es_simulado = False
 
-    # Usamos la cabecera nativa de API-Sports para peticiones directas
-    headers = {
-        "x-apisports-key": FOOTBALL_API_KEY,
-    }
-
-    # 1. RESOLUCIÓN SEGURA DE IDs (Convertir siempre a lista limpia de enteros)
+    # 1. RESOLUCIÓN SEGURA DE IDs DE LIGA
     if league_id is None:
         ligas_a_consultar = MUNDIAL_2026_IDS if isinstance(MUNDIAL_2026_IDS, list) else [MUNDIAL_2026_IDS]
     elif isinstance(league_id, list):
@@ -298,138 +301,115 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     else:
         ligas_a_consultar = [league_id]
 
-    fixture_data = None
-    tipo = "finalizado"
-    league_id_exitoso = None
-
-    # 2. BÚSQUEDA CRONOLÓGICA INVERSA INDIVIDUAL (Evita el uso de 'last' premium)
-    for lid in ligas_a_consultar:
-        if fixture_data: 
-            break
-            
-        # Forzar que el ID de la liga sea un entero plano para evitar TypeErrors
-        id_liga_limpio = int(lid)
-
-        # Determinar si pertenece a la configuración del Mundial
-        es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and id_liga_limpio in MUNDIAL_2026_IDS) or (str(id_liga_limpio) == str(MUNDIAL_2026_IDS))
+    # 2. INTENTO DE CONSULTA A LA API DE FÚTBOL
+    if FOOTBALL_API_KEY:
+        headers = {"x-apisports-key": FOOTBALL_API_KEY}
         
-        # Fallback de temporada inteligente según el plan de la API
-        # Si es mundial y tienes plan Free, forzamos de inmediato el ID 1 y año 2022 para garantizar datos
-        if es_mundial:
-            season_peticion = season if season is not None else 2022
-            id_liga_peticion = 1  # Forzamos liga 1 (Qatar/Histórico) porque el ID 732 no existía en 2022
-        else:
-            anio_actual = datetime.now().year
-            season_peticion = season if season is not None else (anio_actual if datetime.now().month > 6 else anio_actual - 1)
-            id_liga_peticion = id_liga_limpio
-
-        # Revisamos desde hoy hacia atrás para encontrar el partido más reciente de esa fecha
-        for i in range(8):
-            fecha_consulta = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
-            
-            params = {
-                "league": id_liga_peticion,
-                "season": season_peticion,
-                "date": fecha_consulta
-            }
-            
-            print(f"[API-FOOTBALL] Buscando partidos en {fecha_consulta} para liga {id_liga_peticion} (Año {season_peticion})...")
-            try:
-                res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=6)
-                
-                if res.status_code == 200:
-                    res_json = res.json()
-                    response_list = res_json.get("response", [])
-                    
-                    if response_list and len(response_list) > 0:
-                        # Ordenamos los partidos del mismo día de más nuevo a más viejo
-                        response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
-                        
-                        for part in response_list:
-                            status_short = part.get("fixture", {}).get("status", {}).get("short", "")
-                            # Filtramos estados reales jugados o corriendo en vivo
-                            if status_short in ["FT", "AET", "PEN", "1H", "2H", "HT", "ET", "P"]:
-                                fixture_data = part
-                                tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
-                                league_id_exitoso = id_liga_limpio  # Retornamos el ID original que tu app esperaba recibir
-                                break
-                        
-                        if fixture_data:
-                            print(f"[API-FOOTBALL] ¡Éxito! Último partido capturado el día {fecha_consulta}")
-                            break
-                            
-            except Exception as e:
-                print(f"[API-FOOTBALL] Error de conexión en liga {id_liga_peticion} el día {fecha_consulta}: {e}")
+        for lid in ligas_a_consultar:
+            if fixture_data: 
                 break
+                
+            id_liga_limpio = int(lid)
+            es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and id_liga_limpio in MUNDIAL_2026_IDS) or (str(id_liga_limpio) == str(MUNDIAL_2026_IDS))
+            
+            if es_mundial:
+                season_peticion = season if season is not None else 2022
+                id_liga_peticion = 1 
+                es_simulado = True
+                fecha_base = datetime(2022, 12, 18)
+            else:
+                season_peticion = season if season is not None else (datetime.now().year if datetime.now().month > 6 else datetime.now().year - 1)
+                id_liga_peticion = id_liga_limpio
+                fecha_base = datetime.now()
 
+            for i in range(5):
+                fecha_consulta = (fecha_base - timedelta(days=i)).strftime("%Y-%m-%d")
+                params = {"league": id_liga_peticion, "season": season_peticion, "date": fecha_consulta}
+                
+                try:
+                    res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=5)
+                    if res.status_code == 200:
+                        response_list = res.json().get("response", [])
+                        if response_list and len(response_list) > 0:
+                            response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
+                            for part in response_list:
+                                status_short = part.get("fixture", {}).get("status", {}).get("short", "")
+                                if status_short in ["FT", "AET", "PEN", "1H", "2H", "HT", "ET", "P"]:
+                                    fixture_data = part
+                                    tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
+                                    league_id_exitoso = id_liga_limpio
+                                    break
+                            if fixture_data: break
+                except Exception:
+                    break
+
+    # =============================================================================
+    # 3. 🤖 FALLBACK CON INTELIGENCIA ARTIFICIAL (GEMINI)
+    # =============================================================================
     if not fixture_data:
-        print(f"[API-FOOTBALL] Alerta: No se encontraron partidos válidos en la semana para las ligas={ligas_a_consultar}")
-        return {}
+        id_solicitado = ligas_a_consultar[0]
+        es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and id_solicitado in MUNDIAL_2026_IDS) or (str(id_solicitado) == str(MUNDIAL_2026_IDS))
+        
+        # Definimos el contexto temático según el ID de la liga
+        tema = "el Mundial de la FIFA 2026" if es_mundial else f"la liga de fútbol con ID {id_solicitado}"
+        print(f"[🤖 GEMINI-AI] Generando preguntas de contingencia para: {tema}...")
+        
+        try:
+            # Inicializamos el cliente nativo de GenAI de Google
+            client = genai.Client()
+            
+            prompt = f"""
+            Genera una trivia interactiva de 3 preguntas interesantes sobre {tema}.
+            La respuesta debe ser un objeto JSON estructurado estrictamente con este formato:
+            {{
+                "tipo_contenido": "trivia_ia",
+                "tema": "{tema}",
+                "preguntas": [
+                    {{
+                        "pregunta": "Texto de la pregunta",
+                        "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"],
+                        "respuesta_correcta": "La opción exacta que coincide"
+                    }}
+                ]
+            }}
+            Devuelve solo el JSON, sin bloques de código markdown ni texto adicional.
+            """
+            
+            response = client.models.generate_content(
+                model='gemini-2.5-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json"
+                ),
+            )
+            
+            # Importamos json localmente para parsear la respuesta limpia de Gemini
+            import json
+            return json.loads(response.text)
+            
+        except Exception as e:
+            print(f"[🤖 GEMINI-AI] Error al conectar con la IA: {e}")
+            return {
+                "tipo_contenido": "error",
+                "contexto": f"No se encontraron partidos para la liga {id_solicitado} y la IA no está disponible."
+            }
 
-    # 3. EXTRACCIÓN Y FORMATEO SEGURO DEL JSON
+    # 4. RETORNO ESTÁNDAR SI LA API DE FÚTBOL SÍ ENCONTRÓ DATOS
     try:
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
         teams = fixture_data.get("teams", {})
         goals = fixture_data.get("goals", {})
-        score = fixture_data.get("score", {})
-        events = fixture_data.get("events", [])
-        
-        fixture_id = fix.get("id")
-        
-        # Enmascarar la fecha si se usaron datos de 2022 para simular el entorno actual del 2026
-        fecha_original = fix.get("date", "")
-        if league.get("season") == 2022 and es_mundial:
-            fecha = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
-        else:
-            fecha = fecha_original
-
-        estadio = fix.get("venue", {}).get("name", "")
-        ciudad = fix.get("venue", {}).get("city", "")
-        arbitro = fix.get("referee", "")
-        ronda = league.get("round", "")
-        home = teams.get("home", {}).get("name", "")
-        away = teams.get("away", {}).get("name", "")
-        
-        goles_h = goals.get("home") if goals.get("home") is not None else "-"
-        goles_a = goals.get("away") if goals.get("away") is not None else "-"
-        
-        pen_h = score.get("penalty", {}).get("home")
-        pen_a = score.get("penalty", {}).get("away")
-        penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
-        
-        descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
-        clave = f"{league_id_exitoso}_{fixture_id}"
-        
-        eventos_texto = []
-        if isinstance(events, list):
-            for ev in events[:20]:
-                minuto = ev.get("time", {}).get("elapsed", "")
-                jugador = ev.get("player", {}).get("name", "")
-                detalle = ev.get("detail", "")
-                equipo = ev.get("team", {}).get("name", "")
-                if jugador and detalle:
-                    eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
-                    
-        eventos_str = "; ".join(eventos_texto) if eventos_texto else ""
-        contexto = (
-            f"{descripcion}. Fecha: {fecha}. "
-            f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
-            f"Árbitro: {arbitro}."
-            f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
-        )
         
         return {
-            "fixture_id": fixture_id,
-            "clave": clave,
-            "descripcion": descripcion,
+            "tipo_contenido": "partido_real",
+            "fixture_id": fix.get("id"),
+            "descripcion": f"{league.get('round', '')}: {teams.get('home', {}).get('name', '')} {goals.get('home', '-')}-{goals.get('away', '-')} {teams.get('away', {}).get('name', '')}",
             "tipo": tipo,
-            "contexto": contexto,
             "league_id": league_id_exitoso,
-            "season": 2026 if (league.get("season") == 2022 and es_mundial) else league.get("season"),
+            "season": 2026 if es_simulado else league.get("season"),
         }
-    except Exception as e:
-        print(f"[API-FOOTBALL] Error parseando el JSON devuelto: {e}")
+    except Exception:
         return {}
 
 # =============================================================================
