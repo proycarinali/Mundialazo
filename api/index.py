@@ -1396,3 +1396,92 @@ async def inspect_mundial():
         bitacora["paso_2_historial"]["excepcion"] = str(e)
 
     return bitacora
+ @app.get("/api/diagnostico-partido")
+async def diagnostico_partido(league_id: int = None, season: int = None):
+    """
+    Endpoint científico para atrapar el error exacto de la API.
+    Muestra qué datos se envían y qué responde el servidor remoto sin filtros.
+    """
+    import json
+    
+    # 1. Identificar qué variables globales están configuradas en tu código
+    variables_entorno = {
+        "FOOTBALL_API_KEY_CONFIGURADA": bool(FOOTBALL_API_KEY),
+        "API_FOOTBALL_BASE": API_FOOTBALL_BASE,
+        "MUNDIAL_2026_IDS_VALOR": str(MUNDIAL_2026_IDS),
+        "MUNDIAL_2026_IDS_TIPO": str(type(MUNDIAL_2026_IDS)),
+        "MUNDIAL_2026_SEASON": MUNDIAL_2026_SEASON
+    }
+    
+    # 2. Replicar la lógica de selección de ID que usa tu app
+    if league_id is None:
+        league_id_usado = MUNDIAL_2026_IDS
+        season_usada = MUNDIAL_2026_SEASON
+    else:
+        league_id_usado = league_id
+        season_usada = season if season else MUNDIAL_2026_SEASON
+
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": FOOTBALL_API_KEY or "NO_CONFIGURADA",
+    }
+    
+    informe = {
+        "variables_globales": variables_entorno,
+        "parametros_calculados": {
+            "league_id_usado": league_id_usado,
+            "league_id_tipo": str(type(league_id_usado)),
+            "season_usada": season_usada
+        },
+        "llamada_1_last_1": {},
+        "llamada_2_sin_filtros": {}
+    }
+
+    # --- PRUEBA 1: LLAMADA USANDO EL PARAMETRO 'last': 1 ---
+    try:
+        url = f"{API_FOOTBALL_BASE}/fixtures"
+        # Si 'league_id_usado' es una lista, esto va a romper la URL en la API
+        params = {"league": league_id_usado, "season": season_usada, "last": 1}
+        
+        informe["llamada_1_last_1"]["url_solicitada"] = url
+        informe["llamada_1_last_1"]["params_enviados"] = str(params)
+        
+        res = requests.get(url, params=params, headers=headers, timeout=6)
+        informe["llamada_1_last_1"]["http_status"] = res.status_code
+        
+        if res.status_code == 200:
+            res_json = res.json()
+            informe["llamada_1_last_1"]["api_errors"] = res_json.get("errors")
+            informe["llamada_1_last_1"]["results_count"] = res_json.get("results")
+            informe["llamada_1_last_1"]["tipo_response"] = str(type(res_json.get("response")))
+            informe["llamada_1_last_1"]["raw_response"] = res_json.get("response")
+    except Exception as e:
+        informe["llamada_1_last_1"]["error_excepcion"] = str(e)
+
+
+    # --- PRUEBA 2: LLAMADA AL FIXTURE COMPLETO (Para ver si la season existe) ---
+    try:
+        # Forzamos la extracción del primer elemento si es una lista para ver si así responde
+        if isinstance(league_id_usado, list) and len(league_id_usado) > 0:
+            id_limpio = league_id_usado[0]
+        else:
+            id_limpio = league_id_usado
+            
+        params_2 = {"league": int(id_limpio), "season": int(season_usada)}
+        informe["llamada_2_sin_filtros"]["params_enviados"] = str(params_2)
+        
+        res_2 = requests.get(url, params=params_2, headers=headers, timeout=6)
+        informe["llamada_2_sin_filtros"]["http_status"] = res_2.status_code
+        
+        if res_2.status_code == 200:
+            res_json_2 = res_2.json()
+            informe["llamada_2_sin_filtros"]["api_errors"] = res_json_2.get("errors")
+            informe["llamada_2_sin_filtros"]["results_count"] = res_json_2.get("results")
+            if res_json_2.get("response") and len(res_json_2.get("response")) > 0:
+                # Mostramos solo el primer partido del fixture para ver sus llaves reales sin saturar la pantalla
+                informe["llamada_2_sin_filtros"]["muestra_un_partido_real"] = res_json_2.get("response")[0]
+    except Exception as e:
+        informe["llamada_2_sin_filtros"]["error_excepcion"] = str(e)
+
+    return informe
+
