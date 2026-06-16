@@ -1293,3 +1293,92 @@ async def test_mundial():
             reporte_diagnostico[f"league_id_{wid}"]["excepcion"] = str(e)
             
     return reporte_diagnostico
+@app.get("/api/inspect-mundial")
+async def inspect_mundial():
+    """
+    Endpoint de diagnóstico profundo para inspeccionar el flujo real 
+    de la API-Football y detectar el error exacto de desempaquetado.
+    """
+    if not FOOTBALL_API_KEY:
+        return {"status": "ERROR", "mensaje": "FOOTBALL_API_KEY no configurada en el entorno."}
+
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": FOOTBALL_API_KEY,
+    }
+
+    # Determinamos qué ID se está enviando (resolvemos si es lista o entero)
+    try:
+        if isinstance(MUNDIAL_2026_IDS, list):
+            league_id_usado = MUNDIAL_2026_IDS[0]
+        else:
+            league_id_usado = MUNDIAL_2026_IDS
+    except Exception as e:
+        return {"status": "ERROR", "mensaje": f"No se pudo resolver MUNDIAL_2026_IDS: {str(e)}"}
+
+    bitacora = {
+        "configuracion": {
+            "league_id_detectado": league_id_usado,
+            "season_detectada": MUNDIAL_2026_SEASON,
+            "url_base": API_FOOTBALL_BASE
+        },
+        "paso_1_live": {},
+        "paso_2_historial": {}
+    }
+
+    # --- PRUEBA EN VIVO ---
+    try:
+        url_live = f"{API_FOOTBALL_BASE}/fixtures"
+        params_live = {"league": int(league_id_usado), "season": int(MUNDIAL_2026_SEASON), "live": "all"}
+        
+        print(f"[INSPECTOR] Ejecutando GET a {url_live} con params {params_live}")
+        res_live = requests.get(url_live, params=params_live, headers=headers, timeout=6)
+        
+        bitacora["paso_1_live"]["http_status"] = res_live.status_code
+        if res_live.status_code == 200:
+            json_live = res_live.json()
+            bitacora["paso_1_live"]["api_errors"] = json_live.get("errors")
+            bitacora["paso_1_live"]["api_results_count"] = json_live.get("results")
+            response_data = json_live.get("response", [])
+            bitacora["paso_1_live"]["tipo_response"] = str(type(response_data))
+            
+            if response_data and len(response_data) > 0:
+                bitacora["paso_1_live"]["muestra_primer_item"] = response_data[0]
+    except Exception as e:
+        bitacora["paso_1_live"]["excepcion"] = str(e)
+
+
+    # --- PRUEBA HISTORIAL ---
+    try:
+        url_fin = f"{API_FOOTBALL_BASE}/fixtures"
+        # Usamos last=1 que era el parámetro original de tu sistema
+        params_fin = {"league": int(league_id_usado), "season": int(MUNDIAL_2026_SEASON), "last": 1}
+        
+        print(f"[INSPECTOR] Ejecutando GET a {url_fin} con params {params_fin}")
+        res_fin = requests.get(url_fin, params=params_fin, headers=headers, timeout=6)
+        
+        bitacora["paso_2_historial"]["http_status"] = res_fin.status_code
+        if res_fin.status_code == 200:
+            json_fin = res_fin.json()
+            bitacora["paso_2_historial"]["api_errors"] = json_fin.get("errors")
+            bitacora["paso_2_historial"]["api_results_count"] = json_fin.get("results")
+            response_data_fin = json_fin.get("response", [])
+            bitacora["paso_2_historial"]["tipo_response"] = str(type(response_data_fin))
+            
+            if response_data_fin and len(response_data_fin) > 0:
+                bitacora["paso_2_historial"]["muestra_primer_item"] = response_data_fin[0]
+                
+                # Test de extracción simulado para ver dónde salta el error
+                try:
+                    item = response_data_fin[0]
+                    bitacora["paso_2_historial"]["test_parseo"] = {
+                        "fixture_id": item.get("fixture", {}).get("id"),
+                        "home_team": item.get("teams", {}).get("home", {}).get("name"),
+                        "goals_home": item.get("goals", {}).get("home")
+                    }
+                except Exception as parse_err:
+                    bitacora["paso_2_historial"]["test_parseo_error"] = f"Ruptura al extraer datos: {str(parse_err)}"
+    except Exception as e:
+        bitacora["paso_2_historial"]["excepcion"] = str(e)
+
+    return bitacora
