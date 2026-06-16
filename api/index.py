@@ -262,11 +262,14 @@ from datetime import datetime, timedelta
 # =============================================================================
 # 1. FUNCIÓN PRINCIPAL CORREGIDA Y ADAPTADA
 # =============================================================================
+import requests
+from datetime import datetime
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido real disputado de forma directa usando el parámetro 'last'.
     Si el plan Free bloquea la temporada 2026, recurre automáticamente a datos de 2022
-    forzando el uso de la liga ID 1 (Mundial histórico) para evitar respuestas vacías.
+    forzando el uso de la liga ID 1 (Mundial histórico) con las cabeceras nativas de API-Sports.
     """
     global FOOTBALL_API_KEY, MUNDIAL_2026_IDS, API_FOOTBALL_BASE
     
@@ -274,9 +277,9 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
         return {}
 
+    # 🔴 CORRECCIÓN CRÍTICA DE AUTENTICACIÓN PARA API-SPORTS
     headers = {
-        "x-rapidapi-host": "v3.football.api-sports.io",
-        "x-rapidapi-key": FOOTBALL_API_KEY,
+        "x-apisports-key": FOOTBALL_API_KEY,  # Reemplazado x-rapidapi-key por la cabecera nativa requerida
     }
 
     # 1. RESOLUCIÓN SEGURA DE IDs DE LIGA
@@ -300,7 +303,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and lid in MUNDIAL_2026_IDS) or (str(lid) == str(MUNDIAL_2026_IDS))
         season_automatica = season if season is not None else (2026 if es_mundial else datetime.now().year)
 
-        # Variables locales para la petición HTTP actual
         id_liga_peticion = int(lid)
         season_peticion = int(season_automatica)
 
@@ -317,7 +319,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             if res.status_code == 200:
                 res_json = res.json()
                 
-                # 🔴 DETECCIÓN DE BLOQUEO DE PLAN (FALLBACK AUTOMÁTICO A 2022 CON LEAGUE ID 1)
+                # DETECCIÓN DE BLOQUEO DE PLAN (FALLBACK AUTOMÁTICO A 2022 CON LEAGUE ID 1)
                 if "errors" in res_json and "plan" in res_json["errors"] and season_peticion == 2026:
                     print(f"[API-FOOTBALL] ⚠️ Plan Free detectado. Forzando fallback histórico con Mundial 2022 (League ID: 1)...")
                     
@@ -331,7 +333,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 response_list = res_json.get("response", [])
                 
                 if response_list and len(response_list) > 0:
-                    # Ordenamos para asegurar el partido más reciente
                     response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
                     
                     for part in response_list:
@@ -339,7 +340,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                         if status_short in ["FT", "AET", "PEN", "1H", "2H", "HT", "ET", "P"]:
                             fixture_data = part
                             tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
-                            league_id_exitoso = lid  # Mantenemos el ID original solicitado por tu app para consistencia interna
+                            league_id_exitoso = lid  
                             break
                     
                     if fixture_data:
@@ -364,7 +365,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         
         fixture_id = fix.get("id")
         
-        # Enmascaramos la fecha para simular que ocurrió hoy
         fecha_original = fix.get("date", "")
         if simulado_2026 and fecha_original:
             fecha = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
