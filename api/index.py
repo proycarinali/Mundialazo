@@ -1245,10 +1245,7 @@ async def historial_jugador(nombre: str):
         "mejor_puntaje": mejor["puntaje"],
         "historial": historial,
     }
-@app.route("/api/test-football")
-def ruta_test_football():
-    resultado_test = verificar_estado_api_test()
-    return resultado_test
+
 
 async def test_mundial():
     """
