@@ -268,6 +268,9 @@ from datetime import datetime
 import requests
 from datetime import datetime, timedelta
 
+import requests
+from datetime import datetime, timedelta
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido real disputado consultando el calendario cronológico inverso.
@@ -425,6 +428,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     except Exception as e:
         print(f"[API-FOOTBALL] Error parseando el JSON devuelto: {e}")
         return {}
+
 
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
