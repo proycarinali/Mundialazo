@@ -259,6 +259,9 @@ MUNDIAL_2026_SEASON = 2026
 import requests
 from datetime import datetime, timedelta
 
+import requests
+from datetime import datetime, timedelta
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido real disputado. Si el plan gratuito bloquea la temporada 2026,
@@ -293,7 +296,8 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         if fixture_data: 
             break
             
-        es_mundial = (lid in) or (isinstance(MUNDIAL_2026_IDS, list) and lid in MUNDIAL_2026_IDS) or (str(lid) == str(MUNDIAL_2026_IDS))
+        # LÍNEA CORREGIDA AQUÍ:
+        es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and lid in MUNDIAL_2026_IDS) or (str(lid) == str(MUNDIAL_2026_IDS))
         season_automatica = season if season is not None else (2026 if es_mundial else datetime.now().year)
 
         for i in range(8):
@@ -312,15 +316,14 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 if res.status_code == 200:
                     res_json = res.json()
                     
-                    # 🔴 DETECCIÓN DE BLOQUEO DE PLAN (FALLBACK ACTIVADO)
+                    # DETECCIÓN DE BLOQUEO DE PLAN (FALLBACK ACTIVADO)
                     if "errors" in res_json and "plan" in res_json["errors"] and season_automatica == 2026:
                         print(f"[API-FOOTBALL] ⚠️ Bloqueo de plan detectado para 2026. Activando simulación con datos de 2022...")
                         
-                        # Modificamos los parámetros para pedir datos permitidos (Mundial 2022)
                         params["season"] = 2022
-                        # Usamos una fecha equivalente del 2022 o simplemente traemos los últimos de ese torneo
-                        del params["date"] # Eliminamos filtro de fecha para asegurar que traiga partidos reales jugados
-                        params["last"] = 5  # Traemos los últimos 5 disputados de esa temporada
+                        if "date" in params:
+                            del params["date"] 
+                        params["last"] = 5  
                         
                         res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=6)
                         res_json = res.json()
@@ -329,7 +332,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                     response_list = res_json.get("response", [])
                     
                     if response_list and len(response_list) > 0:
-                        # Ordenar de más reciente a más antiguo
                         response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
                         
                         for part in response_list:
@@ -351,7 +353,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         print(f"[API-FOOTBALL] Alerta: No se encontraron partidos para las ligas={ligas_a_consultar}")
         return {}
 
-    # 3. EXTRACCIÓN Y ADAPTACIÓN DE DATOS (CON SIMULACIÓN DE FECHA SI CORRESPONDE)
+    # 3. EXTRACCIÓN Y ADAPTACIÓN DE DATOS
     try:
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
@@ -362,10 +364,8 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         
         fixture_id = fix.get("id")
         
-        # ⚡ Si es simulación, reemplazamos el año de la fecha histórica por 2026 para engañar a tu App
         fecha_original = fix.get("date", "")
         if simulado_2026 and fecha_original:
-            # Convierte "2022-12-18T18:00:00+00:00" en "2026-06-16T..." (usa el día de hoy)
             fecha = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
             print(f"[API-FOOTBALL] Simulación: Fecha histórica {fecha_original} enmascarada como {fecha}")
         else:
