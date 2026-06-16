@@ -262,27 +262,8 @@ from datetime import datetime, timedelta
 # =============================================================================
 # 1. FUNCIÓN PRINCIPAL CORREGIDA Y ADAPTADA
 # =============================================================================
-import requests
-from datetime import datetime
-
-import requests
-from datetime import datetime, timedelta
-
-import requests
-from datetime import datetime, timedelta
-
-import requests
-from datetime import datetime, timedelta
 
 import os
-import requests
-from datetime import datetime, timedelta
-from google import genai
-from google.genai import types
-
-import os
-import requests
-from datetime import datetime, timedelta
 from openai import OpenAI  # Asegúrate de que esta importación sea válida en tu entorno
 
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
