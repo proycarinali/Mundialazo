@@ -262,6 +262,9 @@ from datetime import datetime, timedelta
 import requests
 from datetime import datetime, timedelta
 
+import requests
+from datetime import datetime, timedelta
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido real disputado. Si el plan gratuito bloquea la temporada 2026,
@@ -296,7 +299,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         if fixture_data: 
             break
             
-        # LÍNEA CORREGIDA AQUÍ:
+        # Condición corregida y limpia (Línea 296 anterior)
         es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and lid in MUNDIAL_2026_IDS) or (str(lid) == str(MUNDIAL_2026_IDS))
         season_automatica = season if season is not None else (2026 if es_mundial else datetime.now().year)
 
