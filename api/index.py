@@ -269,6 +269,10 @@ import os
 import requests
 from datetime import datetime
 
+import os
+import requests
+from datetime import datetime
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido usando tu lógica original de reintentos.
@@ -376,13 +380,12 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 return {"tipo_contenido": "error", "contexto": "No hay partidos y la IA no tiene credenciales."}
 
             try:
-                # Estructuración limpia y segura de la URL y parámetros
                 url_gemini = "https://googleapis.com"
                 params_gemini = {"key": gemini_key}
                 
                 prompt = f"""
                 Genera una trivia interactiva de 3 preguntas interesantes y avanzadas sobre {nombre_liga_humano}.
-                REQUISITO IMPRESCINDIBLE: Al menos 2 preguntas deben detallar un partido real especificando qué selecciones o equipos jugaron entre sí (quién contra quién) y qué ocurrió.
+                REQUISITO IMPRESCINDIBLE: Al menos 2 preguntas deben detallar un partido real especificar qué selecciones o equipos jugaron entre sí (quién contra quién) y qué ocurrió.
                 
                 Responde estrictamente con este formato JSON:
                 {{
@@ -400,25 +403,20 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 """
                 
                 payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
-                
-                res_gemini = requests.post(
-                    url_gemini, 
-                    params=params_gemini, 
-                    json=payload, 
-                    headers={"Content-Type": "application/json"}, 
-                    timeout=10
-                )
+                res_gemini = requests.post(url_gemini, params=params_gemini, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
                 
                 if res_gemini.status_code == 200:
                     import json
-                    return json.loads(res_gemini.json()['candidates'][0]['content']['parts'][0]['text'])
+                    return json.loads(res_gemini.json()['candidates']['content']['parts']['text'])
                 else:
                     raise Exception(f"API de Google respondió con código {res_gemini.status_code}")
             except Exception as e:
                 print(f"[🤖 GEMINI-AI] Falló la contingencia de la IA: {e}")
                 return {"tipo_contenido": "error", "contexto": "La base de datos y la IA están fuera de servicio."}
 
-        # 3. TU PARSEO ORIGINAL DE DATOS REALES (Mantenido intacto)
+        # =============================================================================
+        # 3. TU PARSEO ORIGINAL DE DATOS REALES (Mantenido intacto y cerrado correctamente)
+        # =============================================================================
         fix      = fixture_data.get("fixture", {})
         league   = fixture_data.get("league", {})
         teams    = fixture_data.get("teams", {})
@@ -477,7 +475,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
 
-
+       return {"tipo_contenido": "partido_real","fixture_id":  fixture_id,"clave":       clave,"descripcion": descripcion,"tipo":        tipo,"contexto":    contexto,"league_id":   league_id_usado,"season":      fixture_data.get("league", {}).get("season"),}
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
 # =============================================================================
