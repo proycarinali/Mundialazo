@@ -273,24 +273,29 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     try:
         fixture_data = None
         tipo = None
-        # Si no especifican liga o es del mundial, forzamos el ID principal del mundial
+        
+        # SOLUCIÓN AL CUELGUE: Si league_id es None o coincide con el Mundial, 
+        # forzamos el ID correcto y la temporada del Mundial de forma estricta.
         if league_id is None or league_id in MUNDIAL_2026_IDS:
-            league_id_usado = MUNDIAL_2026_IDS[0]
+            league_id_usado = MUNDIAL_2026_IDS[0]  # Usamos el ID primario estricto (1)
             seasons_a_probar = [MUNDIAL_2026_SEASON]
         else:
             league_id_usado = league_id
-            seasons_a_probar = [season] if season else [2026, 2025, 2024]
+            # Si pasaron una temporada específica la usamos, si no, usamos la actual/reciente de esa liga
+            seasons_a_probar = [season] if season is not None else [2026, 2025, 2024]
 
+        # Iteramos de manera segura y limpia
         for s in seasons_a_probar:
             if fixture_data:
                 break
+            
+            # 1. Intentar buscar si hay partido EN VIVO (Reducimos timeout a 4s para evitar cuelgues)
             try:
-                # 1. Intentar buscar partido EN VIVO
                 res_live = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={"league": league_id_usado, "season": s, "live": "all"},
                     headers=headers,
-                    timeout=8,
+                    timeout=4,
                 )
                 if res_live.status_code == 200:
                     fixtures_live = res_live.json().get("response", [])
@@ -302,13 +307,13 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             except Exception as e:
                 print(f"[API-FOOTBALL] Error en vivo liga={league_id_usado} season={s}: {e}")
 
+            # 2. Si no hay partido en vivo, se busca el ÚLTIMO partido finalizado instantáneamente
             try:
-                # 2. Si no hay en vivo, buscar el ÚLTIMO partido finalizado con "last": 1
                 res_fin = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={"league": league_id_usado, "season": s, "last": 1},
                     headers=headers,
-                    timeout=8,
+                    timeout=4,
                 )
                 if res_fin.status_code == 200:
                     fixtures_fin = res_fin.json().get("response", [])
@@ -316,13 +321,16 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                         fixture_data = fixtures_fin[0]
                         tipo = "finalizado"
                         print(f"[API-FOOTBALL] Finalizado encontrado ✅ liga={league_id_usado} season={s}")
+                        break
             except Exception as e:
                 print(f"[API-FOOTBALL] Error finalizado liga={league_id_usado} season={s}: {e}")
 
+        # Si tras el bucle no hay datos, evitamos invocar la función faltante "_buscar_fixture_mundial"
         if not fixture_data:
             print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id_usado}.")
             return {}
 
+        # --- Extracción segura de variables del JSON ---
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
         teams = fixture_data.get("teams", {})
@@ -330,7 +338,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         score = fixture_data.get("score", {})
         events = fixture_data.get("events", [])
         
-        # El resto del procesamiento de la función original se mantiene idéntico...
         fixture_id = fix.get("id")
         fecha = fix.get("date", "")
         estadio = fix.get("venue", {}).get("name", "")
@@ -341,37 +348,48 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         away = teams.get("away", {}).get("name", "")
         goles_h = goals.get("home", "")
         goles_a = goals.get("away", "")
+        
+        # Validar que los goles no vengan como None para evitar strings rotos
+        goles_h = goles_h if goles_h is not None else "-"
+        goles_a = goles_a if goles_a is not None else "-"
+        
         pen_h = score.get("penalty", {}).get("home")
         pen_a = score.get("penalty", {}).get("away")
         penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
+        
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
         clave = f"{league_id_usado}_{fixture_id}"
         
+        # Si no tiene eventos detallados en la respuesta corta, hacemos una única consulta rápida por ID
         if not events:
-            res_detail = requests.get(
-                f"{API_FOOTBALL_BASE}/fixtures",
-                params={"id": fixture_id},
-                headers=headers,
-                timeout=8,
-            )
-            if res_detail.status_code == 200:
-                det_list = res_detail.json().get("response", [])
-                if det_list:
-                    events = det_list[0].get("events", [])
+            try:
+                res_detail = requests.get(
+                    f"{API_FOOTBALL_BASE}/fixtures",
+                    params={"id": fixture_id},
+                    headers=headers,
+                    timeout=4,
+                )
+                if res_detail.status_code == 200:
+                    det_list = res_detail.json().get("response", [])
+                    if det_list:
+                        events = det_list[0].get("events", [])
+            except Exception as e:
+                print(f"[API-FOOTBALL] Error buscando detalle de eventos: {e}")
         
         eventos_texto = []
-        for ev in events[:20]:
-            minuto = ev.get("time", {}).get("elapsed", "")
-            jugador = ev.get("player", {}).get("name", "")
-            detalle = ev.get("detail", "")
-            equipo = ev.get("team", {}).get("name", "")
-            if jugador and detalle:
-                eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
+        if isinstance(events, list):
+            for ev in events[:20]:
+                minuto = ev.get("time", {}).get("elapsed", "")
+                jugador = ev.get("player", {}).get("name", "")
+                detalle = ev.get("detail", "")
+                equipo = ev.get("team", {}).get("name", "")
+                if jugador and detalle:
+                    eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
+                    
         eventos_str = "; ".join(eventos_texto) if eventos_texto else ""
-        
         contexto = (
             f"{descripcion}. Fecha: {fecha}. "
-            f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
+            f"Estadio: {estadio}{', ' + ciudad if city else ''}. "
             f"Árbitro: {arbitro}."
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
@@ -383,10 +401,11 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             "tipo": tipo,
             "contexto": contexto,
             "league_id": league_id_usado,
-            "season": fixture_data.get("league", {}).get("season"),
+            "season": league.get("season"),
         }
+        
     except Exception as e:
-        print(f"[API-FOOTBALL] Excepción inesperada: {e}")
+        print(f"[API-FOOTBALL] Excepción inesperada general: {e}")
         return {}
 
 def obtener_jugadores_api_football(fixture_id) -> list:
