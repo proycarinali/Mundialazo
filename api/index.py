@@ -270,10 +270,15 @@ import os
 import requests
 from datetime import datetime, timedelta
 
+import os
+import requests
+from datetime import datetime, timedelta
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Intenta obtener el último partido de la API de fútbol. Si no encuentra datos,
-    conecta con Google Gemini mediante HTTP directo usando GEMINI_API_KEY.
+    conecta con Google Gemini para generar una trivia interactiva usando nombres
+    de ligas reales e incluyendo enfrentamientos específicos (quién contra quién).
     """
     global FOOTBALL_API_KEY, MUNDIAL_2026_IDS, API_FOOTBALL_BASE
     
@@ -336,15 +341,23 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     # 3. 🤖 FALLBACK CON INTELIGENCIA ARTIFICIAL (GOOGLE GEMINI VIA HTTP)
     # =============================================================================
     if not fixture_data:
-        id_solicitado = ligas_a_consultar
-        es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and id_solicitado in MUNDIAL_2026_IDS) or (str(id_solicitado) == str(MUNDIAL_2026_IDS))
+        # Tomamos el primer ID de la lista consultada para mapear el nombre real
+        id_solicitado = ligas_a_consultar[0] if isinstance(ligas_a_consultar, list) else ligas_a_consultar
+        id_solicitado = int(id_solicitado)
         
-        tema = "el Mundial de la FIFA 2026" if es_mundial else f"la liga de fútbol con ID {id_solicitado}"
-        print(f"[🤖 GEMINI-AI] Generando preguntas de contingencia para: {tema}...")
+        # 🌟 MAPEO TRADUCTOR DE IDs A NOMBRES HUMANOS
+        if id_solicitado in [1, 732] or (isinstance(MUNDIAL_2026_IDS, list) and id_solicitado in MUNDIAL_2026_IDS):
+            nombre_liga_humano = "el Mundial de la FIFA"
+        elif id_solicitado == 39:
+            nombre_liga_humano = "la Premier League de Inglaterra"
+        elif id_solicitado == 140:
+            nombre_liga_humano = "LaLiga de España"
+        else:
+            nombre_liga_humano = f"la competición con ID {id_solicitado}"
+            
+        print(f"[🤖 GEMINI-AI] Generando preguntas personalizadas para: {nombre_liga_humano}...")
         
-        # Leemos la variable de entorno configurada en Railway
         gemini_key = os.environ.get("GEMINI_API_KEY")
-        
         if not gemini_key:
             print("[🤖 GEMINI-AI] Error: No se encontró la variable GEMINI_API_KEY.")
             return {
@@ -353,24 +366,27 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             }
             
         try:
-            # URL oficial de la API de Google Gemini para el modelo Flash
             url_gemini = f"https://googleapis.com{gemini_key}"
             
+            # 🌟 PROMPT OPTIMIZADO: Solicita explícitamente partidos, rivales (quién contra quién) e historia
             prompt = f"""
-            Genera una trivia de 3 preguntas interesantes sobre {tema}.
+            Genera una trivia interactiva de 3 preguntas interesantes y avanzadas sobre {nombre_liga_humano}.
+            REQUISITO CRÍTICO: Al menos 2 preguntas deben tratar obligatoriamente sobre enfrentamientos reales o históricos 
+            especificando 'quién contra quién jugó' (por ejemplo: quién ganó el partido entre X e Y, o qué sucedió en el encuentro de X vs Y).
+            
             La respuesta debe ser un objeto JSON estructurado exactamente con este formato:
             {{
                 "tipo_contenido": "trivia_ia",
-                "tema": "{tema}",
+                "tema": "{nombre_liga_humano}",
                 "preguntas": [
                     {{
-                        "pregunta": "Texto de la pregunta",
+                        "pregunta": "Texto de la pregunta detallando el partido (ej. En el partido del Mundial entre Argentina y Francia...)",
                         "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"],
                         "respuesta_correcta": "La opción exacta que coincide"
                     }}
                 ]
             }}
-            Devuelve únicamente el JSON puro estructurado, sin bloques de código markdown, sin ```json ni texto adicional.
+            Devuelve únicamente el JSON puro estructurado, sin bloques de código markdown, sin ```json ni texto adicional fuera de las llaves.
             """
             
             payload = {
@@ -381,26 +397,23 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             }
             
             headers_gemini = {"Content-Type": "application/json"}
-            
-            # Ejecutamos la llamada HTTP directo
             response = requests.post(url_gemini, json=payload, headers=headers_gemini, timeout=10)
             
             if response.status_code == 200:
                 res_json = response.json()
-                # Extraemos el texto crudo generado por la IA
-                texto_generado = res_json['candidates'][0]['content']['parts'][0]['text']
+                texto_generado = res_json['candidates']['content']['parts']['text']
                 
                 import json
                 return json.loads(texto_generado)
             else:
-                print(f"[🤖 GEMINI-AI] API de Google devolvió código {response.status_code}: {response.text}")
+                print(f"[🤖 GEMINI-AI] API de Google devolvió código {response.status_code}")
                 raise Exception("Fallo en la llamada HTTP de Gemini")
                 
         except Exception as e:
             print(f"[🤖 GEMINI-AI] Error al procesar la solicitud con la IA: {e}")
             return {
                 "tipo_contenido": "error",
-                "contexto": f"No se encontraron partidos para la liga {id_solicitado} y Gemini falló."
+                "contexto": f"No se encontraron partidos para {nombre_liga_humano} y la IA falló."
             }
 
     # 4. RETORNO ESTÁNDAR SI LA API DE FÚTBOL SÍ ENCONTRÓ DATOS
