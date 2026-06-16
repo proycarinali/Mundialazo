@@ -278,6 +278,10 @@ import os
 import requests
 from datetime import datetime
 
+import os
+import requests
+from datetime import datetime
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido usando tu lógica original de reintentos.
@@ -303,7 +307,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         # 1. TU LÓGICA ORIGINAL DE CONSULTA (Mantenida intacta)
         if league_id is not None:
             if isinstance(MUNDIAL_2026_IDS, list) and league_id in MUNDIAL_2026_IDS:
-                seasons_a_probar = [2026] # MUNDIAL_2026_SEASON
+                seasons_a_probar = [2026]
             elif str(league_id) == str(MUNDIAL_2026_IDS):
                 seasons_a_probar = [2026]
             else:
@@ -366,9 +370,10 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         # =============================================================================
         if not fixture_data:
             id_error = league_id if league_id is not None else 1
+            id_error = int(id_error)
             
-            # Traducimos el ID numérico a un nombre legible para el prompt de Gemini
-            if id_error in  or (isinstance(MUNDIAL_2026_IDS, list) and id_error in MUNDIAL_2026_IDS) or str(id_error) == str(MUNDIAL_2026_IDS):
+            # LÍNEA CORREGIDA AQUÍ (Mapeo limpio de IDs)
+            if (isinstance(MUNDIAL_2026_IDS, list) and id_error in MUNDIAL_2026_IDS) or str(id_error) == str(MUNDIAL_2026_IDS):
                 nombre_liga_humano = "el Mundial de la FIFA"
             elif id_error == 39:
                 nombre_liga_humano = "la Premier League de Inglaterra"
@@ -388,7 +393,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 url_gemini = f"https://googleapis.com{gemini_key}"
                 
                 prompt = f"""
-                Genera una trivia interactiva de 3 preguntas interesantes sobre {nombre_liga_humano}.
+                Genera una trivia interactiva de 3 preguntas interesantes y avanzadas sobre {nombre_liga_humano}.
                 REQUISITO IMPRESCINDIBLE: Al menos 2 preguntas deben detallar un partido real especificando qué selecciones o equipos jugaron entre sí (quién contra quién) y qué ocurrió.
                 
                 Responde estrictamente con este formato JSON:
@@ -418,7 +423,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 print(f"[🤖 GEMINI-AI] Falló la contingencia de la IA: {e}")
                 return {"tipo_contenido": "error", "contexto": "La base de datos y la IA están fuera de servicio."}
 
-        # 3. TU PARSEO ORIGINAL DE DATOS REALES (Mantenido intacta si encuentra partido)
+        # 3. TU PARSEO ORIGINAL DE DATOS REALES (Mantenido intacto)
         fix      = fixture_data.get("fixture", {})
         league   = fixture_data.get("league", {})
         teams    = fixture_data.get("teams", {})
@@ -477,12 +482,16 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
 
-        return {
+      return {
             "tipo_contenido": "partido_real",
-            "fixture_id":  fixture_id,
-            "clave":       clave,
-            "descripcion": descripcion,
-
+            "fixture_id": fix.get("id"),
+            "descripcion": f"{league.get('round', '')}: {teams.get('home', {}).get('name', '')} {goals.get('home', '-')}-{goals.get('away', '-')} {teams.get('away', {}).get('name', '')}",
+            "tipo": tipo,
+            "league_id": league_id_exitoso,
+            "season": 2026 if es_simulado else league.get("season"),
+        }
+    except Exception:
+        return {}
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
 # =============================================================================
