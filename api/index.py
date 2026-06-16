@@ -1248,7 +1248,7 @@ async def historial_jugador(nombre: str):
 @app.route("/api/test-football")
 def ruta_test_football():
     resultado_test = verificar_estado_api_test()
-    return resultado_test  # Te devolverá el JSON con el éxito o el error en pantalla
+    return resultado_test
 
 async def test_mundial():
     """
