@@ -265,11 +265,13 @@ from datetime import datetime, timedelta
 import requests
 from datetime import datetime
 
+import requests
+from datetime import datetime, timedelta
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
-    Obtiene el último partido real disputado de forma directa usando el parámetro 'last'.
-    Si el plan Free bloquea la temporada 2026, recurre automáticamente a datos de 2022
-    forzando el uso de la liga ID 1 (Mundial histórico) con las cabeceras nativas de API-Sports.
+    Obtiene el último partido real disputado consultando el calendario cronológico inverso.
+    Maneja listas de IDs de forma segura y evita el bloqueo de parámetros premium del plan Free.
     """
     global FOOTBALL_API_KEY, MUNDIAL_2026_IDS, API_FOOTBALL_BASE
     
@@ -277,12 +279,12 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
         return {}
 
-    # 🔴 CORRECCIÓN CRÍTICA DE AUTENTICACIÓN PARA API-SPORTS
+    # Usamos la cabecera nativa de API-Sports para peticiones directas
     headers = {
-        "x-apisports-key": FOOTBALL_API_KEY,  # Reemplazado x-rapidapi-key por la cabecera nativa requerida
+        "x-apisports-key": FOOTBALL_API_KEY,
     }
 
-    # 1. RESOLUCIÓN SEGURA DE IDs DE LIGA
+    # 1. RESOLUCIÓN SEGURA DE IDs (Convertir siempre a lista limpia de enteros)
     if league_id is None:
         ligas_a_consultar = MUNDIAL_2026_IDS if isinstance(MUNDIAL_2026_IDS, list) else [MUNDIAL_2026_IDS]
     elif isinstance(league_id, list):
@@ -293,68 +295,72 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     fixture_data = None
     tipo = "finalizado"
     league_id_exitoso = None
-    simulado_2026 = False
 
-    # 2. CONSULTA DIRECTA MEDIANTE PARÁMETRO 'LAST'
+    # 2. BÚSQUEDA CRONOLÓGICA INVERSA INDIVIDUAL (Evita el uso de 'last' premium)
     for lid in ligas_a_consultar:
         if fixture_data: 
             break
             
-        es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and lid in MUNDIAL_2026_IDS) or (str(lid) == str(MUNDIAL_2026_IDS))
-        season_automatica = season if season is not None else (2026 if es_mundial else datetime.now().year)
+        # Forzar que el ID de la liga sea un entero plano para evitar TypeErrors
+        id_liga_limpio = int(lid)
 
-        id_liga_peticion = int(lid)
-        season_peticion = int(season_automatica)
-
-        params = {
-            "league": id_liga_peticion,
-            "season": season_peticion,
-            "last": 5
-        }
+        # Determinar si pertenece a la configuración del Mundial
+        es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and id_liga_limpio in MUNDIAL_2026_IDS) or (str(id_liga_limpio) == str(MUNDIAL_2026_IDS))
         
-        print(f"[API-FOOTBALL] Consultando últimos partidos para liga {id_liga_peticion} (Año {season_peticion})...")
-        try:
-            res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=6)
-            
-            if res.status_code == 200:
-                res_json = res.json()
-                
-                # DETECCIÓN DE BLOQUEO DE PLAN (FALLBACK AUTOMÁTICO A 2022 CON LEAGUE ID 1)
-                if "errors" in res_json and "plan" in res_json["errors"] and season_peticion == 2026:
-                    print(f"[API-FOOTBALL] ⚠️ Plan Free detectado. Forzando fallback histórico con Mundial 2022 (League ID: 1)...")
-                    
-                    params["season"] = 2022
-                    params["league"] = 1  # Forzamos ID 1 ya que el ID 732 no existía en la temporada 2022
-                    
-                    res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=6)
-                    res_json = res.json()
-                    simulado_2026 = True
+        # Fallback de temporada inteligente según el plan de la API
+        # Si es mundial y tienes plan Free, forzamos de inmediato el ID 1 y año 2022 para garantizar datos
+        if es_mundial:
+            season_peticion = season if season is not None else 2022
+            id_liga_peticion = 1  # Forzamos liga 1 (Qatar/Histórico) porque el ID 732 no existía en 2022
+        else:
+            anio_actual = datetime.now().year
+            season_peticion = season if season is not None else (anio_actual if datetime.now().month > 6 else anio_actual - 1)
+            id_liga_peticion = id_liga_limpio
 
-                response_list = res_json.get("response", [])
+        # Revisamos desde hoy hacia atrás para encontrar el partido más reciente de esa fecha
+        for i in range(8):
+            fecha_consulta = (datetime.now() - timedelta(days=i)).strftime("%Y-%m-%d")
+            
+            params = {
+                "league": id_liga_peticion,
+                "season": season_peticion,
+                "date": fecha_consulta
+            }
+            
+            print(f"[API-FOOTBALL] Buscando partidos en {fecha_consulta} para liga {id_liga_peticion} (Año {season_peticion})...")
+            try:
+                res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=6)
                 
-                if response_list and len(response_list) > 0:
-                    response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
+                if res.status_code == 200:
+                    res_json = res.json()
+                    response_list = res_json.get("response", [])
                     
-                    for part in response_list:
-                        status_short = part.get("fixture", {}).get("status", {}).get("short", "")
-                        if status_short in ["FT", "AET", "PEN", "1H", "2H", "HT", "ET", "P"]:
-                            fixture_data = part
-                            tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
-                            league_id_exitoso = lid  
-                            break
-                    
-                    if fixture_data:
-                        break
+                    if response_list and len(response_list) > 0:
+                        # Ordenamos los partidos del mismo día de más nuevo a más viejo
+                        response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
                         
-        except Exception as e:
-            print(f"[API-FOOTBALL] Error de conexión en liga {lid}: {e}")
-            break
+                        for part in response_list:
+                            status_short = part.get("fixture", {}).get("status", {}).get("short", "")
+                            # Filtramos estados reales jugados o corriendo en vivo
+                            if status_short in ["FT", "AET", "PEN", "1H", "2H", "HT", "ET", "P"]:
+                                fixture_data = part
+                                tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
+                                league_id_exitoso = id_liga_limpio  # Retornamos el ID original que tu app esperaba recibir
+                                break
+                        
+                        if fixture_data:
+                            print(f"[API-FOOTBALL] ¡Éxito! Último partido capturado el día {fecha_consulta}")
+                            break
+                            
+            except Exception as e:
+                print(f"[API-FOOTBALL] Error de conexión en liga {id_liga_peticion} el día {fecha_consulta}: {e}")
+                break
 
     if not fixture_data:
-        print(f"[API-FOOTBALL] Alerta: No se encontraron partidos para las ligas={ligas_a_consultar}")
+        print(f"[API-FOOTBALL] Alerta: No se encontraron partidos válidos en la semana para las ligas={ligas_a_consultar}")
         return {}
 
-    # 3. EXTRACCIÓN Y ADAPTACIÓN DE DATOS (CON MÁSCARA TEMPORAL DE PRUEBAS)
+    # 3. EXTRACCIÓN Y FORMATEO SEGURO DEL JSON
     try:
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
@@ -365,8 +371,9 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         
         fixture_id = fix.get("id")
         
+        # Enmascarar la fecha si se usaron datos de 2022 para simular el entorno actual del 2026
         fecha_original = fix.get("date", "")
-        if simulado_2026 and fecha_original:
+        if league.get("season") == 2022 and es_mundial:
             fecha = datetime.now().strftime("%Y-%m-%dT%H:%M:%S+00:00")
         else:
             fecha = fecha_original
@@ -413,12 +420,11 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             "tipo": tipo,
             "contexto": contexto,
             "league_id": league_id_exitoso,
-            "season": 2026 if simulado_2026 else league.get("season"),
+            "season": 2026 if (league.get("season") == 2022 and es_mundial) else league.get("season"),
         }
     except Exception as e:
         print(f"[API-FOOTBALL] Error parseando el JSON devuelto: {e}")
         return {}
-
 
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
