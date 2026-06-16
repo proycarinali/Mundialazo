@@ -274,60 +274,73 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         fixture_data = None
         tipo = None
         
-        # CORRECCIÓN EXPLICITA: Extraemos el primer ID entero de la lista para no enviar un objeto tipo List a la API
-        if league_id is None or league_id in MUNDIAL_2026_IDS:
-            league_id_usado = MUNDIAL_2026_IDS[0]  # Resuelve a un entero válido (ID: 1)
+        # 1. RESOLUCIÓN DE ID: Si league_id es None o es una lista, extraemos un entero estricto.
+        if league_id is None:
+            # Si MUNDIAL_2026_IDS es una lista [1] o similar, tomamos el primer elemento numérico
+            if isinstance(MUNDIAL_2026_IDS, list):
+                league_id_usado = MUNDIAL_2026_IDS[0]
+            else:
+                league_id_usado = MUNDIAL_2026_IDS
+            seasons_a_probar = [MUNDIAL_2026_SEASON]
+        elif isinstance(league_id, list):
+            league_id_usado = league_id[0]
             seasons_a_probar = [MUNDIAL_2026_SEASON]
         else:
             league_id_usado = league_id
-            seasons_a_probar = [season] if season is not None else [2026, 2025, 2024]
+            seasons_a_probar = [season] if season is not None else [MUNDIAL_2026_SEASON]
 
-        # Iteramos de manera segura y limpia
         for s in seasons_a_probar:
-            if fixture_data:
-                break
-            
-            # 1. Intentar buscar si hay partido EN VIVO ahora mismo
+            # --- PASO 1: INTENTAR BUSCAR EN VIVO ---
             try:
                 res_live = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
-                    params={"league": league_id_usado, "season": s, "live": "all"},
+                    params={"league": int(league_id_usado), "season": int(s), "live": "all"},
                     headers=headers,
                     timeout=5,
                 )
                 if res_live.status_code == 200:
-                    fixtures_live = res_live.json().get("response", [])
-                    if fixtures_live:
-                        fixture_data = fixtures_live[0]  # Obtenemos el primer partido del arreglo
+                    res_json = res_live.json()
+                    # Muestra en logs si la API devolvió un mensaje de error de plan o cuota
+                    if res_json.get("errors"):
+                        print(f"[API-FOOTBALL] Error devuelto por la API: {res_json.get('errors')}")
+                    
+                    fixtures_live = res_json.get("response", [])
+                    if fixtures_live and len(fixtures_live) > 0:
+                        fixture_data = fixtures_live[0]
                         tipo = "en_curso"
-                        print(f"[API-FOOTBALL] En vivo encontrado ✅ liga={league_id_usado} season={s}")
+                        print(f"[API-FOOTBALL] En vivo encontrado ✅ liga={league_id_usado}")
                         break
             except Exception as e:
-                print(f"[API-FOOTBALL] Error en vivo liga={league_id_usado} season={s}: {e}")
+                print(f"[API-FOOTBALL] Fallo en sub-búsqueda en vivo: {e}")
 
-            # 2. Si no hay partido en vivo, se busca el ÚLTIMO partido finalizado instantáneamente con last=1
+            # --- PASO 2: SOLUCIÓN DE FALLBACK - BUSCAR HISTORIAL POR ESTADO ---
+            # En vez de "last=1" que a veces viene vacío, pedimos los partidos finalizados de la temporada.
             try:
                 res_fin = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
-                    params={"league": league_id_usado, "season": s, "last": 1},
+                    params={"league": int(league_id_usado), "season": int(s), "status": "FT"},
                     headers=headers,
                     timeout=5,
                 )
                 if res_fin.status_code == 200:
-                    fixtures_fin = res_fin.json().get("response", [])
-                    if fixtures_fin:
-                        fixture_data = fixtures_fin[0]  # Obtenemos el objeto fixture del arreglo
+                    res_json = res_fin.json()
+                    fixtures_fin = res_json.get("response", [])
+                    
+                    if fixtures_fin and len(fixtures_fin) > 0:
+                        # Ordenamos los partidos por fecha para asegurar que el último sea el más reciente
+                        fixtures_fin.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
+                        fixture_data = fixtures_fin[0]  # Tomamos el último partido jugado y finalizado cronológicamente
                         tipo = "finalizado"
-                        print(f"[API-FOOTBALL] Finalizado encontrado ✅ liga={league_id_usado} season={s}")
+                        print(f"[API-FOOTBALL] Partido finalizado recuperado con éxito ✅ liga={league_id_usado}")
                         break
             except Exception as e:
-                print(f"[API-FOOTBALL] Error finalizado liga={league_id_usado} season={s}: {e}")
+                print(f"[API-FOOTBALL] Fallo en sub-búsqueda de historial: {e}")
 
         if not fixture_data:
-            print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id_usado}.")
+            print(f"[API-FOOTBALL] No se encontraron partidos para la liga={league_id_usado} y temporada={seasons_a_probar}")
             return {}
 
-        # --- Extracción segura de variables del JSON ---
+        # --- Extracción e indexación segura de variables del JSON ---
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
         teams = fixture_data.get("teams", {})
@@ -343,12 +356,9 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         ronda = league.get("round", "")
         home = teams.get("home", {}).get("name", "")
         away = teams.get("away", {}).get("name", "")
-        goles_h = goals.get("home", "")
-        goles_a = goals.get("away", "")
         
-        # Validar que los goles no vengan como None para evitar strings rotos
-        goles_h = goles_h if goles_h is not None else "-"
-        goles_a = goles_a if goles_a is not None else "-"
+        goles_h = goals.get("home") if goals.get("home") is not None else "-"
+        goles_a = goals.get("away") if goals.get("away") is not None else "-"
         
         pen_h = score.get("penalty", {}).get("home")
         pen_a = score.get("penalty", {}).get("away")
@@ -357,18 +367,18 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
         clave = f"{league_id_usado}_{fixture_id}"
         
-        # Si no tiene eventos detallados en la respuesta corta, hacemos una consulta rápida por ID
+        # Petición rápida de eventos si el objeto vino simplificado
         if not events:
             try:
                 res_detail = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
-                    params={"id": fixture_id},
+                    params={"id": int(fixture_id)},
                     headers=headers,
-                    timeout=5,
+                    timeout=4,
                 )
                 if res_detail.status_code == 200:
                     det_list = res_detail.json().get("response", [])
-                    if det_list:
+                    if det_list and len(det_list) > 0:
                         events = det_list[0].get("events", [])
             except Exception as e:
                 print(f"[API-FOOTBALL] Error buscando detalle de eventos: {e}")
@@ -403,7 +413,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         }
         
     except Exception as e:
-        print(f"[API-FOOTBALL] Excepción inesperada general: {e}")
+        print(f"[API-FOOTBALL] Excepción inesperada general en procesamiento: {e}")
         return {}
 
 def obtener_jugadores_api_football(fixture_id) -> list:
