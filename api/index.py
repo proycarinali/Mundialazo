@@ -266,10 +266,14 @@ from datetime import datetime, timedelta
 import os
 from openai import OpenAI  # Asegúrate de que esta importación sea válida en tu entorno
 
+import os
+import requests
+from datetime import datetime, timedelta
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Intenta obtener el último partido de la API de fútbol. Si no encuentra datos,
-    conecta con OpenAI para generar una trivia interactiva de la liga o mundial.
+    conecta con Google Gemini mediante HTTP directo usando GEMINI_API_KEY.
     """
     global FOOTBALL_API_KEY, MUNDIAL_2026_IDS, API_FOOTBALL_BASE
     
@@ -329,22 +333,32 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                     break
 
     # =============================================================================
-    # 3. 🤖 FALLBACK CON INTELIGENCIA ARTIFICIAL (OPENAI)
+    # 3. 🤖 FALLBACK CON INTELIGENCIA ARTIFICIAL (GOOGLE GEMINI VIA HTTP)
     # =============================================================================
     if not fixture_data:
         id_solicitado = ligas_a_consultar
         es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and id_solicitado in MUNDIAL_2026_IDS) or (str(id_solicitado) == str(MUNDIAL_2026_IDS))
         
         tema = "el Mundial de la FIFA 2026" if es_mundial else f"la liga de fútbol con ID {id_solicitado}"
-        print(f"[🤖 OPENAI-AI] Generando preguntas de contingencia para: {tema}...")
+        print(f"[🤖 GEMINI-AI] Generando preguntas de contingencia para: {tema}...")
         
+        # Leemos la variable de entorno configurada en Railway
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        
+        if not gemini_key:
+            print("[🤖 GEMINI-AI] Error: No se encontró la variable GEMINI_API_KEY.")
+            return {
+                "tipo_contenido": "error",
+                "contexto": "No hay partidos disponibles y la clave de Gemini no está configurada."
+            }
+            
         try:
-            # Inicializa el cliente usando la variable de entorno OPENAI_API_KEY de forma automática
-            client = OpenAI()
+            # URL oficial de la API de Google Gemini para el modelo Flash
+            url_gemini = f"https://googleapis.com{gemini_key}"
             
             prompt = f"""
-            Genera una trivia interactiva de 3 preguntas interesantes sobre {tema}.
-            La respuesta debe ser un objeto JSON estructurado estrictamente con este formato:
+            Genera una trivia de 3 preguntas interesantes sobre {tema}.
+            La respuesta debe ser un objeto JSON estructurado exactamente con este formato:
             {{
                 "tipo_contenido": "trivia_ia",
                 "tema": "{tema}",
@@ -356,26 +370,37 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                     }}
                 ]
             }}
-            Devuelve únicamente el JSON puro estructurado, sin bloques de código markdown ni texto adicional.
+            Devuelve únicamente el JSON puro estructurado, sin bloques de código markdown, sin ```json ni texto adicional.
             """
             
-            # Llamada compatible con openai>=1.0.0 utilizando gpt-4o-mini por costo y velocidad
-            response = client.chat.completases.create(
-                model="gpt-4o-mini",
-                messages=[
-                    {"role": "user", "content": prompt}
-                ],
-                response_format={"type": "json_object"}  # Fuerza a OpenAI a responder con un JSON válido
-            )
+            payload = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "responseMimeType": "application/json"
+                }
+            }
             
-            import json
-            return json.loads(response.choices[0].message.content)
+            headers_gemini = {"Content-Type": "application/json"}
             
+            # Ejecutamos la llamada HTTP directo
+            response = requests.post(url_gemini, json=payload, headers=headers_gemini, timeout=10)
+            
+            if response.status_code == 200:
+                res_json = response.json()
+                # Extraemos el texto crudo generado por la IA
+                texto_generado = res_json['candidates'][0]['content']['parts'][0]['text']
+                
+                import json
+                return json.loads(texto_generado)
+            else:
+                print(f"[🤖 GEMINI-AI] API de Google devolvió código {response.status_code}: {response.text}")
+                raise Exception("Fallo en la llamada HTTP de Gemini")
+                
         except Exception as e:
-            print(f"[🤖 OPENAI-AI] Error al conectar con OpenAI: {e}")
+            print(f"[🤖 GEMINI-AI] Error al procesar la solicitud con la IA: {e}")
             return {
                 "tipo_contenido": "error",
-                "contexto": f"No se encontraron partidos para la liga {id_solicitado} y OpenAI no está disponible."
+                "contexto": f"No se encontraron partidos para la liga {id_solicitado} y Gemini falló."
             }
 
     # 4. RETORNO ESTÁNDAR SI LA API DE FÚTBOL SÍ ENCONTRÓ DATOS
