@@ -1396,7 +1396,7 @@ async def inspect_mundial():
         bitacora["paso_2_historial"]["excepcion"] = str(e)
 
     return bitacora
- @app.get("/api/diagnostico-partido")
+@app.get("/api/diagnostico-partido")
 async def diagnostico_partido(league_id: int = None, season: int = None):
     """
     Endpoint científico para atrapar el error exacto de la API.
