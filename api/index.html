@@ -708,7 +708,7 @@ function renderizarLigasMenu(ligas, mostrarTodas) {
     for (const liga of visible) {
         html += `
             <li class="liga-menu-item"
-                onclick="seleccionarLigaDesdeMenu('liga', ${liga.id}, '${escHtml(liga.nombre)}', ${liga.season || 'null'})">
+                onclick="seleccionarLigaDesdeMenu('liga', ${liga.id}, '${escHtml(liga.nombre)}', ${liga.season != null ? liga.season : 'null'})">
                 <div class="liga-info">
                     <span class="liga-nombre">${escHtml(liga.nombre)}</span>
                     <span class="liga-pais">${escHtml(liga.pais)}</span>
@@ -758,11 +758,6 @@ async function seleccionarLigaDesdeMenu(tipo, ligaId, ligaNombre, ligaSeason) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        if (data.sin_partido_hoy) {
-            // Solo para ligas no mundialistas → trivia genérica
-            await arrancarTriviaGenerica(ligaId, ligaNombre, ligaSeason);
-            return;
-        }
         if (data.error) throw new Error(data.error);
 
         partidoActual = { ...data, liga_id: ligaId, season: ligaSeason };
@@ -770,8 +765,8 @@ async function seleccionarLigaDesdeMenu(tipo, ligaId, ligaNombre, ligaSeason) {
 
     } catch (err) {
         console.error('Error cargando partido:', err);
-        // Si falla, intentar trivia genérica
-        await arrancarTriviaGenerica(ligaId, ligaNombre, ligaSeason);
+        cambiarPantalla('scr-menu');
+        alert(`⚠️ Error al buscar partido de ${ligaNombre}: ${err.message}`);
     }
 }
 
