@@ -249,47 +249,7 @@ def generar_codigo_sala(longitud: int = 6) -> str:
 API_FOOTBALL_BASE    = "https://v3.football.api-sports.io"
 MUNDIAL_2026_IDS    = [1, 732]
 MUNDIAL_2026_SEASON = 2026
-ESPN_SUMMARY_URL    = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world/summary"
 
-
-def obtener_jugadores_fixture(fixture_id) -> list:
-    jugadores = []
-    try:
-        res = requests.get(ESPN_SUMMARY_URL, params={"event": fixture_id}, timeout=6)
-        if res.status_code != 200:
-            return jugadores
-        data = res.json()
-        rosters = data.get("rosters", [])
-        for team in rosters:
-            for player in team.get("roster", []):
-                atleta = player.get("athlete", {})
-                nombre = atleta.get("displayName", "")
-                posicion = atleta.get("position", {}).get("abbreviation", "N/A")
-                stats_dict = {}
-                for stat_grupo in player.get("stats", []):
-                    nombre_stat = stat_grupo.get("name") or stat_grupo.get("abbreviation")
-                    valor_stat = stat_grupo.get("value", stat_grupo.get("displayValue"))
-                    if nombre_stat is not None:
-                        stats_dict[nombre_stat] = valor_stat
-                jugadores.append({
-                    "nombre":            nombre,
-                    "posicion":          posicion,
-                    "minutos":           stats_dict.get("minutes", stats_dict.get("appearances", 0)),
-                    "calificacion":      stats_dict.get("rating", "N/A"),
-                    "goles":             stats_dict.get("goals", 0),
-                    "asistencias":       stats_dict.get("goalAssists", stats_dict.get("assists", 0)),
-                    "tiros_total":       stats_dict.get("totalShots", 0),
-                    "tiros_al_arco":     stats_dict.get("shotsOnTarget", 0),
-                    "pases_completados": stats_dict.get("accuratePasses", "0"),
-                    "faltas_cometidas":  stats_dict.get("foulsCommitted", 0),
-                    "faltas_recibidas":  stats_dict.get("foulsSuffered", stats_dict.get("foulsDrawn", 0)),
-                    "tarjetas_amarillas":stats_dict.get("yellowCards", 0),
-                    "tarjetas_rojas":    stats_dict.get("redCards", 0),
-                    "atajadas":          stats_dict.get("saves", 0),
-                })
-    except Exception:
-        pass
-    return jugadores
 
 
 # ===============================================================================
@@ -302,8 +262,8 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     (o de la liga indicada por league_id) usando la API-Football (api-sports.io).
     """
     if not FOOTBALL_API_KEY:
-        print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada, usando ESPN como fallback.")
-        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+        print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
+        return {}
 
     headers = {
         "x-rapidapi-host": "v3.football.api-sports.io",
@@ -361,11 +321,11 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id}. Probando fallback global de Mundial...")
                 fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
                 if not fixture_data:
-                    return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+                    return {}
         else:
             fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
             if not fixture_data:
-                return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+                return {}
 
         fix      = fixture_data.get("fixture", {})
         league   = fixture_data.get("league", {})
@@ -434,11 +394,11 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
 
     except Exception as e:
         print(f"[API-FOOTBALL] Excepción inesperada: {e}")
-        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+        return {}
 
 def obtener_jugadores_api_football(fixture_id) -> list:
     if not FOOTBALL_API_KEY:
-        return obtener_jugadores_fixture(fixture_id)
+        return []
 
     headers = {
         "x-rapidapi-host": "v3.football.api-sports.io",
@@ -453,7 +413,8 @@ def obtener_jugadores_api_football(fixture_id) -> list:
             timeout=8,
         )
         if res.status_code != 200:
-            return obtener_jugadores_fixture(fixture_id)
+            print(f"[API-FOOTBALL] fixtures/players devolvio status {res.status_code}")
+            return []
 
         for team_block in res.json().get("response", []):
             for player_data in team_block.get("players", []):
@@ -485,7 +446,7 @@ def obtener_jugadores_api_football(fixture_id) -> list:
                 })
     except Exception as e:
         print(f"[API-FOOTBALL] Error obteniendo jugadores: {e}")
-        return obtener_jugadores_fixture(fixture_id)
+        return []
 
     return jugadores
 
