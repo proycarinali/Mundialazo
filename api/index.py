@@ -274,14 +274,12 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         fixture_data = None
         tipo = None
         
-        # SOLUCIÓN AL CUELGUE: Si league_id es None o coincide con el Mundial, 
-        # forzamos el ID correcto y la temporada del Mundial de forma estricta.
+        # CORRECCIÓN EXPLICITA: Extraemos el primer ID entero de la lista para no enviar un objeto tipo List a la API
         if league_id is None or league_id in MUNDIAL_2026_IDS:
-            league_id_usado = MUNDIAL_2026_IDS[0]  # Usamos el ID primario estricto (1)
+            league_id_usado = MUNDIAL_2026_IDS[0]  # Resuelve a un entero válido (ID: 1)
             seasons_a_probar = [MUNDIAL_2026_SEASON]
         else:
             league_id_usado = league_id
-            # Si pasaron una temporada específica la usamos, si no, usamos la actual/reciente de esa liga
             seasons_a_probar = [season] if season is not None else [2026, 2025, 2024]
 
         # Iteramos de manera segura y limpia
@@ -289,43 +287,42 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             if fixture_data:
                 break
             
-            # 1. Intentar buscar si hay partido EN VIVO (Reducimos timeout a 4s para evitar cuelgues)
+            # 1. Intentar buscar si hay partido EN VIVO ahora mismo
             try:
                 res_live = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={"league": league_id_usado, "season": s, "live": "all"},
                     headers=headers,
-                    timeout=4,
+                    timeout=5,
                 )
                 if res_live.status_code == 200:
                     fixtures_live = res_live.json().get("response", [])
                     if fixtures_live:
-                        fixture_data = fixtures_live[0]
+                        fixture_data = fixtures_live[0]  # Obtenemos el primer partido del arreglo
                         tipo = "en_curso"
                         print(f"[API-FOOTBALL] En vivo encontrado ✅ liga={league_id_usado} season={s}")
                         break
             except Exception as e:
                 print(f"[API-FOOTBALL] Error en vivo liga={league_id_usado} season={s}: {e}")
 
-            # 2. Si no hay partido en vivo, se busca el ÚLTIMO partido finalizado instantáneamente
+            # 2. Si no hay partido en vivo, se busca el ÚLTIMO partido finalizado instantáneamente con last=1
             try:
                 res_fin = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={"league": league_id_usado, "season": s, "last": 1},
                     headers=headers,
-                    timeout=4,
+                    timeout=5,
                 )
                 if res_fin.status_code == 200:
                     fixtures_fin = res_fin.json().get("response", [])
                     if fixtures_fin:
-                        fixture_data = fixtures_fin[0]
+                        fixture_data = fixtures_fin[0]  # Obtenemos el objeto fixture del arreglo
                         tipo = "finalizado"
                         print(f"[API-FOOTBALL] Finalizado encontrado ✅ liga={league_id_usado} season={s}")
                         break
             except Exception as e:
                 print(f"[API-FOOTBALL] Error finalizado liga={league_id_usado} season={s}: {e}")
 
-        # Si tras el bucle no hay datos, evitamos invocar la función faltante "_buscar_fixture_mundial"
         if not fixture_data:
             print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id_usado}.")
             return {}
@@ -360,14 +357,14 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
         clave = f"{league_id_usado}_{fixture_id}"
         
-        # Si no tiene eventos detallados en la respuesta corta, hacemos una única consulta rápida por ID
+        # Si no tiene eventos detallados en la respuesta corta, hacemos una consulta rápida por ID
         if not events:
             try:
                 res_detail = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={"id": fixture_id},
                     headers=headers,
-                    timeout=4,
+                    timeout=5,
                 )
                 if res_detail.status_code == 200:
                     det_list = res_detail.json().get("response", [])
@@ -387,9 +384,10 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                     eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
                     
         eventos_str = "; ".join(eventos_texto) if eventos_texto else ""
+        
         contexto = (
             f"{descripcion}. Fecha: {fecha}. "
-            f"Estadio: {estadio}{', ' + ciudad if city else ''}. "
+            f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
             f"Árbitro: {arbitro}."
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
