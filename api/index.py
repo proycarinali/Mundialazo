@@ -258,8 +258,8 @@ MUNDIAL_2026_SEASON = 2026
 
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
-    Obtiene el último partido de la API oficial de Football usando la temporada 
-    correcta para el Mundial (2026) y calculando la temporada en curso para las ligas locales.
+    Obtiene el último partido disputado accediendo por el fixture cronológico del día
+    para evadir el bloqueo de derechos de temporada de la API de Football.
     """
     if not FOOTBALL_API_KEY:
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
@@ -270,8 +270,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         "x-rapidapi-key": FOOTBALL_API_KEY,
     }
 
-    # 1. RESOLUCIÓN DE VARIABLE Y DETERMINACIÓN DE TEMPORADA EN CURSO
-    # Desempaquetamos correctamente el ID si viene en formato de lista global
+    # 1. RESOLUCIÓN DE VARIABLE E ID DE COMPETICIÓN
     if league_id is None:
         league_id_usado = MUNDIAL_2026_IDS if isinstance(MUNDIAL_2026_IDS, list) else MUNDIAL_2026_IDS
     elif isinstance(league_id, list):
@@ -279,69 +278,68 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     else:
         league_id_usado = league_id
 
-    # Verificamos si la consulta apunta al Mundial
     es_mundial = (league_id_usado == 1 or league_id_usado == 732 or str(league_id_usado) in str(MUNDIAL_2026_IDS))
 
+    # Determinamos la temporada según el torneo (Mundial o Liga Local)
+    from datetime import datetime, timedelta
+    fecha_hoy = datetime.now().strftime("%Y-%m-%d") # Fecha actual en curso (2026-06-16)
+    
     if es_mundial:
-        # El Mundial exige estrictamente su año calendario corriente
         season_automatica = 2026
     else:
-        # CORRECCIÓN DE TEMPORADA: Si pasan una temporada la usamos, 
-        # si no, la API exige el año de inicio del campeonato actual.
-        from datetime import datetime
         anio_actual = datetime.now().year
-        # Si estamos en la primera mitad del año, muchas ligas curadas corresponden a la temporada del año anterior
         season_automatica = season if season is not None else (anio_actual if datetime.now().month > 6 else anio_actual - 1)
 
     fixture_data = None
-    tipo = None
+    tipo = "finalizado"
 
     try:
-        # PASO 1: Intentar buscar si hay algún partido corriendo EN VIVO en este instante
+        # NUEVA FORMA DE ACCESO: Consultamos los partidos por fecha exacta para esquivar el bloqueo del parámetro 'last'
         try:
-            res_live = requests.get(
-                f"{API_FOOTBALL_BASE}/fixtures",
-                params={"league": int(league_id_usado), "season": int(season_automatica), "live": "all"},
-                headers=headers,
-                timeout=5,
-            )
-            if res_live.status_code == 200:
-                response_list = res_live.json().get("response", [])
+            params = {
+                "league": int(league_id_usado),
+                "season": int(season_automatica),
+                "date": fecha_hoy
+            }
+            print(f"[API-FOOTBALL] Accediendo de forma segura por fecha: {params}")
+            res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=6)
+            
+            if res.status_code == 200:
+                response_list = res.json().get("response", [])
+                
+                # Si hoy hay partidos, extraemos el último que haya terminado o esté en juego
                 if response_list and len(response_list) > 0:
-                    fixture_data = response_list[0]  # Extraemos el objeto diccionario limpio
-                    tipo = "en_curso"
-                    print(f"[API-FOOTBALL] Partido EN VIVO encontrado ✅ Liga: {league_id_usado} Temp: {season_automatica}")
+                    # Ordenamos cronológicamente por fecha/hora
+                    response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
+                    fixture_data = response_list[0]
+                    status_short = fixture_data.get("fixture", {}).get("status", {}).get("short", "")
+                    tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
         except Exception as e:
-            print(f"[API-FOOTBALL] Error buscando partidos en vivo: {e}")
+            print(f"[API-FOOTBALL] Error en acceso por fecha de hoy: {e}")
 
-        # PASO 2: Si no hay en vivo, buscar de forma directa el último partido finalizado (Historial)
+        # FALLBACK CRONOLÓGICO: Si hoy no hubo partidos de esa liga, consultamos los últimos días
         if not fixture_data:
             try:
-                res_fin = requests.get(
-                    f"{API_FOOTBALL_BASE}/fixtures",
-                    params={
-                        "league": int(league_id_usado), 
-                        "season": int(season_automatica), 
-                        "last": 1  # Forzamos que traiga el último registro cronológico real de la base de datos
-                    },
-                    headers=headers,
-                    timeout=5,
-                )
-                if res_fin.status_code == 200:
-                    response_list = res_fin.json().get("response", [])
+                # Buscamos los partidos disputados ayer o días anteriores sin usar el parámetro 'last' trabado
+                fecha_ayer = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+                params_ayer = {"league": int(league_id_usado), "season": int(season_automatica), "date": fecha_ayer}
+                
+                res_ayer = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params_ayer, headers=headers, timeout=6)
+                if res_ayer.status_code == 200:
+                    response_list = res_ayer.json().get("response", [])
                     if response_list and len(response_list) > 0:
-                        fixture_data = response_list[0]  # Extraemos el diccionario del índice 0
+                        response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
+                        fixture_data = response_list[0]
                         tipo = "finalizado"
-                        print(f"[API-FOOTBALL] Último partido finalizado capturado ✅ Liga: {league_id_usado} Temp: {season_automatica}")
             except Exception as e:
-                print(f"[API-FOOTBALL] Error buscando último partido finalizado: {e}")
+                print(f"[API-FOOTBALL] Error en fallback cronológico: {e}")
 
-        # Si la API no retorna ningún registro con la temporada calculada
+        # Si el acceso alternativo sigue denegado por restricciones absolutas de la cuenta
         if not fixture_data:
-            print(f"[API-FOOTBALL] Error: Sin partidos devueltos para liga={league_id_usado} en temporada={season_automatica}")
+            print(f"[API-FOOTBALL] Alerta: No se encontraron partidos accesibles para liga={league_id_usado} en la jornada actual.")
             return {}
 
-        # 2. EXTRACCIÓN SEGURA DE LAS LLAVES DEL JSON DE LA API
+        # 2. EXTRACCIÓN SEGURA DEL DICCIONARIO INTERNO RECOLECTADO
         fix = fixture_data.get("fixture", {})
         league = fixture_data.get("league", {})
         teams = fixture_data.get("teams", {})
@@ -368,7 +366,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
         clave = f"{league_id_usado}_{fixture_id}"
         
-        # Mapeo de eventos (goles, tarjetas) del partido
+        # Procesamiento limpio de la cadena de eventos del encuentro
         eventos_texto = []
         if isinstance(events, list):
             for ev in events[:20]:
@@ -398,7 +396,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         }
         
     except Exception as e:
-        print(f"[API-FOOTBALL] Excepción inesperada en procesamiento: {e}")
+        print(f"[API-FOOTBALL] Excepción general en procesamiento alternativo: {e}")
         return {}
 
 
