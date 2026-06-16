@@ -588,7 +588,11 @@ def _generar_preguntas_ia(partido_info: dict, jugadores: list) -> list:
             texto_cortado = texto[:ultimo_corte + 1]
             if not texto_cortado.rstrip().endswith("]}"):
                 texto_cortado = texto_cortado.rstrip().rstrip(",") + "]}"
-            parsed = json.loads(texto_cortado)
+            try:
+                parsed = json.loads(texto_cortado)
+            except json.JSONDecodeError:
+                print("[IA] No se pudo parsear el JSON de la IA tras 3 intentos")
+                return []
 
     return parsed.get("preguntas", [])
 
@@ -658,7 +662,11 @@ def _generar_trivia_generica(liga_id: int, liga_nombre: str) -> list:
             txt2  = texto[:corte + 1]
             if not txt2.rstrip().endswith("]}"):
                 txt2 = txt2.rstrip().rstrip(",") + "]}"
-            parsed = json.loads(txt2)
+            try:
+                parsed = json.loads(txt2)
+            except json.JSONDecodeError:
+                print("[TRIVIA-GEN] No se pudo parsear el JSON tras 3 intentos")
+                return []
 
     return parsed.get("preguntas", [])
 
@@ -936,8 +944,7 @@ async def obtener_trivias(clave: str = "", refresh: bool = False, liga_id: int =
                 jugadores = obtener_jugadores_api_football(fixture_id)
                 print(f"[TRIVIAS] Jugadores obtenidos: {len(jugadores)}")
 
-            loop = asyncio.get_event_loop()
-            banco = await loop.run_in_executor(None, generar_preguntas, partido_item, jugadores)
+            banco = await asyncio.to_thread(generar_preguntas, partido_item, jugadores)
             print(f"[TRIVIAS] Preguntas generadas: {len(banco)}")
             if banco:
                 guardar_preguntas_partido_historial(partido_item.get("clave", ""), banco)
@@ -971,9 +978,8 @@ async def trivias_genericas(liga_id: int, liga_nombre: str = "", season: int = N
         liga_nombre = LIGAS_CURADAS.get(liga_id, (f"Liga {liga_id}", ""))[0]
 
     try:
-        loop      = asyncio.get_event_loop()
-        preguntas = await loop.run_in_executor(
-            None, _generar_trivia_generica, liga_id, liga_nombre
+        preguntas = await asyncio.to_thread(
+            _generar_trivia_generica, liga_id, liga_nombre
         )
         if not preguntas:
             return {"error": f"No se pudieron generar preguntas para {liga_nombre}."}
