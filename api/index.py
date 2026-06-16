@@ -274,165 +274,214 @@ import os
 import requests
 from datetime import datetime, timedelta
 
+import os
+import requests
+from datetime import datetime
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
-    Intenta obtener el último partido de la API de fútbol. Si no encuentra datos,
-    conecta con Google Gemini para generar una trivia interactiva usando nombres
-    de ligas reales e incluyendo enfrentamientos específicos (quién contra quién).
+    Obtiene el último partido usando tu lógica original de reintentos.
+    Si todo falla (incluyendo tu _buscar_fixture_mundial), conecta con Gemini 
+    usando GEMINI_API_KEY para devolver trivias dinámicas con nombres de ligas y equipos reales.
     """
     global FOOTBALL_API_KEY, MUNDIAL_2026_IDS, API_FOOTBALL_BASE
     
-    fixture_data = None
-    tipo = "finalizado"
-    league_id_exitoso = None
-    es_simulado = False
+    if not FOOTBALL_API_KEY:
+        print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
+        return {}
 
-    # 1. RESOLUCIÓN SEGURA DE IDs DE LIGA
-    if league_id is None:
-        ligas_a_consultar = MUNDIAL_2026_IDS if isinstance(MUNDIAL_2026_IDS, list) else [MUNDIAL_2026_IDS]
-    elif isinstance(league_id, list):
-        ligas_a_consultar = league_id
-    else:
-        ligas_a_consultar = [league_id]
+    headers = {
+        "x-rapidapi-host": "v3.football.api-sports.io",
+        "x-rapidapi-key": FOOTBALL_API_KEY,
+    }
 
-    # 2. INTENTO DE CONSULTA A LA API DE FÚTBOL
-    if FOOTBALL_API_KEY:
-        headers = {"x-apisports-key": FOOTBALL_API_KEY}
-        
-        for lid in ligas_a_consultar:
-            if fixture_data: 
-                break
-                
-            id_liga_limpio = int(lid)
-            es_mundial = (isinstance(MUNDIAL_2026_IDS, list) and id_liga_limpio in MUNDIAL_2026_IDS) or (str(id_liga_limpio) == str(MUNDIAL_2026_IDS))
-            
-            if es_mundial:
-                season_peticion = season if season is not None else 2022
-                id_liga_peticion = 1 
-                es_simulado = True
-                fecha_base = datetime(2022, 12, 18)
-            else:
-                season_peticion = season if season is not None else (datetime.now().year if datetime.now().month > 6 else datetime.now().year - 1)
-                id_liga_peticion = id_liga_limpio
-                fecha_base = datetime.now()
-
-            for i in range(5):
-                fecha_consulta = (fecha_base - timedelta(days=i)).strftime("%Y-%m-%d")
-                params = {"league": id_liga_peticion, "season": season_peticion, "date": fecha_consulta}
-                
-                try:
-                    res = requests.get(f"{API_FOOTBALL_BASE}/fixtures", params=params, headers=headers, timeout=5)
-                    if res.status_code == 200:
-                        response_list = res.json().get("response", [])
-                        if response_list and len(response_list) > 0:
-                            response_list.sort(key=lambda x: x.get("fixture", {}).get("date", ""), reverse=True)
-                            for part in response_list:
-                                status_short = part.get("fixture", {}).get("status", {}).get("short", "")
-                                if status_short in ["FT", "AET", "PEN", "1H", "2H", "HT", "ET", "P"]:
-                                    fixture_data = part
-                                    tipo = "en_curso" if status_short in ["1H", "2H", "HT", "ET", "P"] else "finalizado"
-                                    league_id_exitoso = id_liga_limpio
-                                    break
-                            if fixture_data: break
-                except Exception:
-                    break
-
-    # =============================================================================
-    # 3. 🤖 FALLBACK CON INTELIGENCIA ARTIFICIAL (GOOGLE GEMINI VIA HTTP)
-    # =============================================================================
-    if not fixture_data:
-        # Tomamos el primer ID de la lista consultada para mapear el nombre real
-        id_solicitado = ligas_a_consultar[0] if isinstance(ligas_a_consultar, list) else ligas_a_consultar
-        id_solicitado = int(id_solicitado)
-        
-        # 🌟 MAPEO TRADUCTOR DE IDs A NOMBRES HUMANOS
-        if id_solicitado in [1, 732] or (isinstance(MUNDIAL_2026_IDS, list) and id_solicitado in MUNDIAL_2026_IDS):
-            nombre_liga_humano = "el Mundial de la FIFA"
-        elif id_solicitado == 39:
-            nombre_liga_humano = "la Premier League de Inglaterra"
-        elif id_solicitado == 140:
-            nombre_liga_humano = "LaLiga de España"
-        else:
-            nombre_liga_humano = f"la competición con ID {id_solicitado}"
-            
-        print(f"[🤖 GEMINI-AI] Generando preguntas personalizadas para: {nombre_liga_humano}...")
-        
-        gemini_key = os.environ.get("GEMINI_API_KEY")
-        if not gemini_key:
-            print("[🤖 GEMINI-AI] Error: No se encontró la variable GEMINI_API_KEY.")
-            return {
-                "tipo_contenido": "error",
-                "contexto": "No hay partidos disponibles y la clave de Gemini no está configurada."
-            }
-            
-        try:
-            url_gemini = f"https://googleapis.com{gemini_key}"
-            
-            # 🌟 PROMPT OPTIMIZADO: Solicita explícitamente partidos, rivales (quién contra quién) e historia
-            prompt = f"""
-            Genera una trivia interactiva de 3 preguntas interesantes y avanzadas sobre {nombre_liga_humano}.
-            REQUISITO CRÍTICO: Al menos 2 preguntas deben tratar obligatoriamente sobre enfrentamientos reales o históricos 
-            especificando 'quién contra quién jugó' (por ejemplo: quién ganó el partido entre X e Y, o qué sucedió en el encuentro de X vs Y).
-            
-            La respuesta debe ser un objeto JSON estructurado exactamente con este formato:
-            {{
-                "tipo_contenido": "trivia_ia",
-                "tema": "{nombre_liga_humano}",
-                "preguntas": [
-                    {{
-                        "pregunta": "Texto de la pregunta detallando el partido (ej. En el partido del Mundial entre Argentina y Francia...)",
-                        "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"],
-                        "respuesta_correcta": "La opción exacta que coincide"
-                    }}
-                ]
-            }}
-            Devuelve únicamente el JSON puro estructurado, sin bloques de código markdown, sin ```json ni texto adicional fuera de las llaves.
-            """
-            
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {
-                    "responseMimeType": "application/json"
-                }
-            }
-            
-            headers_gemini = {"Content-Type": "application/json"}
-            response = requests.post(url_gemini, json=payload, headers=headers_gemini, timeout=10)
-            
-            if response.status_code == 200:
-                res_json = response.json()
-                texto_generado = res_json['candidates']['content']['parts']['text']
-                
-                import json
-                return json.loads(texto_generado)
-            else:
-                print(f"[🤖 GEMINI-AI] API de Google devolvió código {response.status_code}")
-                raise Exception("Fallo en la llamada HTTP de Gemini")
-                
-        except Exception as e:
-            print(f"[🤖 GEMINI-AI] Error al procesar la solicitud con la IA: {e}")
-            return {
-                "tipo_contenido": "error",
-                "contexto": f"No se encontraron partidos para {nombre_liga_humano} y la IA falló."
-            }
-
-    # 4. RETORNO ESTÁNDAR SI LA API DE FÚTBOL SÍ ENCONTRÓ DATOS
     try:
-        fix = fixture_data.get("fixture", {})
-        league = fixture_data.get("league", {})
-        teams = fixture_data.get("teams", {})
-        goals = fixture_data.get("goals", {})
-        
+        fixture_data = None
+        tipo = None
+        league_id_usado = league_id
+
+        # 1. TU LÓGICA ORIGINAL DE CONSULTA (Mantenida intacta)
+        if league_id is not None:
+            if isinstance(MUNDIAL_2026_IDS, list) and league_id in MUNDIAL_2026_IDS:
+                seasons_a_probar = [2026] # MUNDIAL_2026_SEASON
+            elif str(league_id) == str(MUNDIAL_2026_IDS):
+                seasons_a_probar = [2026]
+            else:
+                seasons_a_probar = [season] if season else [2025, 2026, 2024]
+
+            for s in seasons_a_probar:
+                if fixture_data:
+                    break
+                # Intento en vivo
+                try:
+                    res_live = requests.get(
+                        f"{API_FOOTBALL_BASE}/fixtures",
+                        params={"league": league_id, "season": s, "live": "all"},
+                        headers=headers,
+                        timeout=8,
+                    )
+                    if res_live.status_code == 200:
+                        fixtures_live = res_live.json().get("response", [])
+                        if fixtures_live:
+                            fixture_data = fixtures_live[0]
+                            tipo = "en_curso"
+                            print(f"[API-FOOTBALL] ✅ En vivo encontrado liga={league_id} season={s}")
+                            break
+                except Exception as e:
+                    print(f"[API-FOOTBALL] Error en vivo liga={league_id} season={s}: {e}")
+
+                # Intento finalizado
+                try:
+                    res_fin = requests.get(
+                        f"{API_FOOTBALL_BASE}/fixtures",
+                        params={"league": league_id, "season": s, "last": 1},
+                        headers=headers,
+                        timeout=8,
+                    )
+                    if res_fin.status_code == 200:
+                        fixtures_fin = res_fin.json().get("response", [])
+                        if fixtures_fin:
+                            fixture_data = fixtures_fin[0]
+                            tipo = "finalizado"
+                            print(f"[API-FOOTBALL] ✅ Finalizado encontrado liga={league_id} season={s}")
+                except Exception as e:
+                    print(f"[API-FOOTBALL] Error finalizado liga={league_id} season={s}: {e}")
+
+            # Llamada a tu subfunción original de rescate si el bucle falla
+            if not fixture_data:
+                print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id}. Probando tu fallback global...")
+                try:
+                    fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
+                except Exception as e:
+                    print(f"[API-FOOTBALL] Tu subfunción _buscar_fixture_mundial falló o no existe: {e}")
+        else:
+            # Caso donde league_id es None de origen
+            try:
+                fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
+            except Exception as e:
+                print(f"[API-FOOTBALL] Tu subfunción _buscar_fixture_mundial falló o no existe: {e}")
+
+        # =============================================================================
+        # 2. 🤖 NUEVO PARACAÍDAS DE EMERGENCIA: SI LA API SE QUEDÓ COMPLETAMENTE VACÍA
+        # =============================================================================
+        if not fixture_data:
+            id_error = league_id if league_id is not None else 1
+            
+            # Traducimos el ID numérico a un nombre legible para el prompt de Gemini
+            if id_error in  or (isinstance(MUNDIAL_2026_IDS, list) and id_error in MUNDIAL_2026_IDS) or str(id_error) == str(MUNDIAL_2026_IDS):
+                nombre_liga_humano = "el Mundial de la FIFA"
+            elif id_error == 39:
+                nombre_liga_humano = "la Premier League de Inglaterra"
+            elif id_error == 140:
+                nombre_liga_humano = "LaLiga de España"
+            else:
+                nombre_liga_humano = f"la liga con ID {id_error}"
+
+            print(f"[🤖 GEMINI-AI] Red de fútbol totalmente caída. Generando preguntas para {nombre_liga_humano}...")
+            
+            gemini_key = os.environ.get("GEMINI_API_KEY")
+            if not gemini_key:
+                print("[🤖 GEMINI-AI] Error: Falta GEMINI_API_KEY en las variables de Railway.")
+                return {"tipo_contenido": "error", "contexto": "No hay partidos y la IA no tiene credenciales."}
+
+            try:
+                url_gemini = f"https://googleapis.com{gemini_key}"
+                
+                prompt = f"""
+                Genera una trivia interactiva de 3 preguntas interesantes sobre {nombre_liga_humano}.
+                REQUISITO IMPRESCINDIBLE: Al menos 2 preguntas deben detallar un partido real especificando qué selecciones o equipos jugaron entre sí (quién contra quién) y qué ocurrió.
+                
+                Responde estrictamente con este formato JSON:
+                {{
+                    "tipo_contenido": "trivia_ia",
+                    "tema": "{nombre_liga_humano}",
+                    "preguntas": [
+                        {{
+                            "pregunta": "Texto de la pregunta detallando el enfrentamiento de quién contra quién",
+                            "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"],
+                            "respuesta_correcta": "La opción exacta que coincide"
+                        }}
+                    ]
+                }}
+                Devuelve solo el JSON crudo, sin bloques de código markdown, sin ```json ni textos adicionales.
+                """
+                
+                payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
+                res_gemini = requests.post(url_gemini, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+                
+                if res_gemini.status_code == 200:
+                    import json
+                    return json.loads(res_gemini.json()['candidates']['content']['parts']['text'])
+                else:
+                    raise Exception(f"API de Google respondió con código {res_gemini.status_code}")
+            except Exception as e:
+                print(f"[🤖 GEMINI-AI] Falló la contingencia de la IA: {e}")
+                return {"tipo_contenido": "error", "contexto": "La base de datos y la IA están fuera de servicio."}
+
+        # 3. TU PARSEO ORIGINAL DE DATOS REALES (Mantenido intacta si encuentra partido)
+        fix      = fixture_data.get("fixture", {})
+        league   = fixture_data.get("league", {})
+        teams    = fixture_data.get("teams", {})
+        goals    = fixture_data.get("goals", {})
+        score    = fixture_data.get("score", {})
+        events   = fixture_data.get("events", [])
+
+        fixture_id = fix.get("id")
+        fecha      = fix.get("date", "")
+        estadio    = fix.get("venue", {}).get("name", "")
+        ciudad     = fix.get("venue", {}).get("city", "")
+        arbitro    = fix.get("referee", "")
+        ronda      = league.get("round", "")
+
+        home    = teams.get("home", {}).get("name", "")
+        away    = teams.get("away", {}).get("name", "")
+        goles_h = goals.get("home", "")
+        goles_a = goals.get("away", "")
+
+        pen_h = score.get("penalty", {}).get("home")
+        pen_a = score.get("penalty", {}).get("away")
+        penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
+
+        descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
+        clave       = f"{league_id_usado}_{fixture_id}"
+
+        if not events:
+            try:
+                res_detail = requests.get(
+                    f"{API_FOOTBALL_BASE}/fixtures",
+                    params={"id": fixture_id},
+                    headers=headers,
+                    timeout=8,
+                )
+                if res_detail.status_code == 200:
+                    det_list = res_detail.json().get("response", [])
+                    if det_list:
+                        events = det_list[0].get("events", [])
+            except Exception:
+                pass
+
+        eventos_texto = []
+        for ev in events[:20]:
+            minuto  = ev.get("time", {}).get("elapsed", "")
+            jugador = ev.get("player", {}).get("name", "")
+            detalle = ev.get("detail", "")
+            equipo  = ev.get("team", {}).get("name", "")
+            if jugador and detalle:
+                eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
+
+        eventos_str = "; ".join(eventos_texto) if eventos_texto else ""
+        contexto = (
+            f"{descripcion}. Fecha: {fecha}. "
+            f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
+            f"Árbitro: {arbitro}."
+            f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
+        )
+
         return {
             "tipo_contenido": "partido_real",
-            "fixture_id": fix.get("id"),
-            "descripcion": f"{league.get('round', '')}: {teams.get('home', {}).get('name', '')} {goals.get('home', '-')}-{goals.get('away', '-')} {teams.get('away', {}).get('name', '')}",
-            "tipo": tipo,
-            "league_id": league_id_exitoso,
-            "season": 2026 if es_simulado else league.get("season"),
-        }
-    except Exception:
-        return {}
+            "fixture_id":  fixture_id,
+            "clave":       clave,
+            "descripcion": descripcion,
 
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
