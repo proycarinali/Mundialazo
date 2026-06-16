@@ -1245,74 +1245,11 @@ async def historial_jugador(nombre: str):
         "mejor_puntaje": mejor["puntaje"],
         "historial": historial,
     }
-@app.get("/api/test-football-key")
-async def test_football_key():
-    """
-    Endpoint de diagnóstico para validar el estado de la API-Football
-    sin consumir la cuota de peticiones diarias.
-    """
-    if not FOOTBALL_API_KEY:
-        return {
-            "estado": "ERROR",
-            "motivo": "La variable FOOTBALL_API_KEY no está configurada en las variables de entorno."
-        }
-        
-    headers = {
-        "x-rapidapi-host": "v3.football.api-sports.io",
-        "x-rapidapi-key": FOOTBALL_API_KEY
-    }
-    
-    diagnostico = {}
-    
-    try:
-        # Probamos el endpoint /status (No consume créditos diarios)
-        url_status = f"{API_FOOTBALL_BASE}/status"
-        response = requests.get(url_status, headers=headers, timeout=5)
-        
-        diagnostico["http_status_code"] = response.status_code
-        
-        if response.status_code == 200:
-            data = response.json()
-            
-            # Verificamos errores internos de la API (ej. API Key inválida)
-            if data.get("errors"):
-                diagnostico["estado"] = "FALLIDO"
-                diagnostico["detalles_error"] = data.get("errors")
-                diagnostico["sugerencia"] = "Revisa si copiaste bien la clave en tu entorno de desarrollo."
-            else:
-                resp_info = data.get("response", {})
-                account = resp_info.get("account", {})
-                sub = resp_info.get("subscription", {})
-                reqs = resp_info.get("requests", {})
-                
-                diagnostico["estado"] = "CONEXIÓN EXITOSA"
-                diagnostico["usuario"] = f"{account.get('firstname')} {account.get('lastname')}"
-                diagnostico["plan"] = sub.get("plan")
-                diagnostico["peticiones_hoy"] = f"{reqs.get('current')} / {reqs.get('limit_day')}"
-                
-                # Alerta si superaste el límite del plan
-                if reqs.get("current", 0) >= reqs.get("limit_day", 100):
-                    diagnostico["alerta"] = "Has alcanzado el límite diario de llamadas de tu plan."
-        
-        elif response.status_code == 401:
-            diagnostico["estado"] = "NO AUTORIZADO (401)"
-            diagnostico["sugerencia"] = "Tu API Key no es válida o fue revocada en el panel de control de API-Sports."
-        elif response.status_code == 429:
-            diagnostico["estado"] = "LÍMITE SUPERADO (429)"
-            diagnostico["sugerencia"] = "Estás haciendo demasiadas peticiones por minuto para tu plan (el plan gratuito permite 10 por minuto)."
-        else:
-            diagnostico["estado"] = f"ERROR HTTP {response.status_code}"
-            diagnostico["respuesta_servidor"] = response.text
+@app.route("/api/test-football")
+def ruta_test_football():
+    resultado_test = verificar_estado_api_test()
+    return resultado_test  # Te devolverá el JSON con el éxito o el error en pantalla
 
-    except requests.exceptions.Timeout:
-        diagnostico["estado"] = "TIMEOUT"
-        diagnostico["motivo"] = "El servidor de API-Football tardó demasiado en responder. Revisa tu conexión a internet."
-    except Exception as e:
-        diagnostico["estado"] = "EXCEPCIÓN INESPERADA"
-        diagnostico["error"] = str(e)
-        
-    return diagnostico
-@app.get("/api/test-mundial")
 async def test_mundial():
     """
     Endpoint de testeo para ver la respuesta exacta de la API
