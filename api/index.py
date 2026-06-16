@@ -273,86 +273,80 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     try:
         fixture_data = None
         tipo = None
-        league_id_usado = league_id
-
-        if league_id is not None:
-            if league_id in MUNDIAL_2026_IDS:
-                seasons_a_probar = [MUNDIAL_2026_SEASON]
-            else:
-                seasons_a_probar = [season] if season else [2025, 2026, 2024]
-
-            for s in seasons_a_probar:
-                if fixture_data:
-                    break
-                try:
-                    res_live = requests.get(
-                        f"{API_FOOTBALL_BASE}/fixtures",
-                        params={"league": league_id, "season": s, "live": "all"},
-                        headers=headers,
-                        timeout=8,
-                    )
-                    if res_live.status_code == 200:
-                        fixtures_live = res_live.json().get("response", [])
-                        if fixtures_live:
-                            fixture_data = fixtures_live[0]
-                            tipo = "en_curso"
-                            print(f"[API-FOOTBALL] ✅ En vivo encontrado liga={league_id} season={s}")
-                            break
-                except Exception as e:
-                    print(f"[API-FOOTBALL] Error en vivo liga={league_id} season={s}: {e}")
-
-                try:
-                    res_fin = requests.get(
-                        f"{API_FOOTBALL_BASE}/fixtures",
-                        params={"league": league_id, "season": s, "last": 1},
-                        headers=headers,
-                        timeout=8,
-                    )
-                    if res_fin.status_code == 200:
-                        fixtures_fin = res_fin.json().get("response", [])
-                        if fixtures_fin:
-                            fixture_data = fixtures_fin[0]
-                            tipo = "finalizado"
-                            print(f"[API-FOOTBALL] ✅ Finalizado encontrado liga={league_id} season={s}")
-                except Exception as e:
-                    print(f"[API-FOOTBALL] Error finalizado liga={league_id} season={s}: {e}")
-
-            if not fixture_data:
-                print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id}. Probando fallback global de Mundial...")
-                fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
-                if not fixture_data:
-                    return {}
+        # Si no especifican liga o es del mundial, forzamos el ID principal del mundial
+        if league_id is None or league_id in MUNDIAL_2026_IDS:
+            league_id_usado = MUNDIAL_2026_IDS[0]
+            seasons_a_probar = [MUNDIAL_2026_SEASON]
         else:
-            fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
-            if not fixture_data:
-                return {}
+            league_id_usado = league_id
+            seasons_a_probar = [season] if season else [2026, 2025, 2024]
 
-        fix      = fixture_data.get("fixture", {})
-        league   = fixture_data.get("league", {})
-        teams    = fixture_data.get("teams", {})
-        goals    = fixture_data.get("goals", {})
-        score    = fixture_data.get("score", {})
-        events   = fixture_data.get("events", [])
+        for s in seasons_a_probar:
+            if fixture_data:
+                break
+            try:
+                # 1. Intentar buscar partido EN VIVO
+                res_live = requests.get(
+                    f"{API_FOOTBALL_BASE}/fixtures",
+                    params={"league": league_id_usado, "season": s, "live": "all"},
+                    headers=headers,
+                    timeout=8,
+                )
+                if res_live.status_code == 200:
+                    fixtures_live = res_live.json().get("response", [])
+                    if fixtures_live:
+                        fixture_data = fixtures_live[0]
+                        tipo = "en_curso"
+                        print(f"[API-FOOTBALL] En vivo encontrado ✅ liga={league_id_usado} season={s}")
+                        break
+            except Exception as e:
+                print(f"[API-FOOTBALL] Error en vivo liga={league_id_usado} season={s}: {e}")
 
+            try:
+                # 2. Si no hay en vivo, buscar el ÚLTIMO partido finalizado con "last": 1
+                res_fin = requests.get(
+                    f"{API_FOOTBALL_BASE}/fixtures",
+                    params={"league": league_id_usado, "season": s, "last": 1},
+                    headers=headers,
+                    timeout=8,
+                )
+                if res_fin.status_code == 200:
+                    fixtures_fin = res_fin.json().get("response", [])
+                    if fixtures_fin:
+                        fixture_data = fixtures_fin[0]
+                        tipo = "finalizado"
+                        print(f"[API-FOOTBALL] Finalizado encontrado ✅ liga={league_id_usado} season={s}")
+            except Exception as e:
+                print(f"[API-FOOTBALL] Error finalizado liga={league_id_usado} season={s}: {e}")
+
+        if not fixture_data:
+            print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id_usado}.")
+            return {}
+
+        fix = fixture_data.get("fixture", {})
+        league = fixture_data.get("league", {})
+        teams = fixture_data.get("teams", {})
+        goals = fixture_data.get("goals", {})
+        score = fixture_data.get("score", {})
+        events = fixture_data.get("events", [])
+        
+        # El resto del procesamiento de la función original se mantiene idéntico...
         fixture_id = fix.get("id")
-        fecha      = fix.get("date", "")
-        estadio    = fix.get("venue", {}).get("name", "")
-        ciudad     = fix.get("venue", {}).get("city", "")
-        arbitro    = fix.get("referee", "")
-        ronda      = league.get("round", "")
-
-        home    = teams.get("home", {}).get("name", "")
-        away    = teams.get("away", {}).get("name", "")
+        fecha = fix.get("date", "")
+        estadio = fix.get("venue", {}).get("name", "")
+        ciudad = fix.get("venue", {}).get("city", "")
+        arbitro = fix.get("referee", "")
+        ronda = league.get("round", "")
+        home = teams.get("home", {}).get("name", "")
+        away = teams.get("away", {}).get("name", "")
         goles_h = goals.get("home", "")
         goles_a = goals.get("away", "")
-
         pen_h = score.get("penalty", {}).get("home")
         pen_a = score.get("penalty", {}).get("away")
         penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
-
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
-        clave       = f"{league_id_usado}_{fixture_id}"
-
+        clave = f"{league_id_usado}_{fixture_id}"
+        
         if not events:
             res_detail = requests.get(
                 f"{API_FOOTBALL_BASE}/fixtures",
@@ -364,34 +358,33 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 det_list = res_detail.json().get("response", [])
                 if det_list:
                     events = det_list[0].get("events", [])
-
+        
         eventos_texto = []
         for ev in events[:20]:
-            minuto  = ev.get("time", {}).get("elapsed", "")
+            minuto = ev.get("time", {}).get("elapsed", "")
             jugador = ev.get("player", {}).get("name", "")
             detalle = ev.get("detail", "")
-            equipo  = ev.get("team", {}).get("name", "")
+            equipo = ev.get("team", {}).get("name", "")
             if jugador and detalle:
                 eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
-
         eventos_str = "; ".join(eventos_texto) if eventos_texto else ""
+        
         contexto = (
             f"{descripcion}. Fecha: {fecha}. "
             f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
             f"Árbitro: {arbitro}."
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
-
+        
         return {
-            "fixture_id":  fixture_id,
-            "clave":       clave,
+            "fixture_id": fixture_id,
+            "clave": clave,
             "descripcion": descripcion,
-            "tipo":        tipo,
-            "contexto":    contexto,
-            "league_id":   league_id_usado,
-            "season":      fixture_data.get("league", {}).get("season"),
+            "tipo": tipo,
+            "contexto": contexto,
+            "league_id": league_id_usado,
+            "season": fixture_data.get("league", {}).get("season"),
         }
-
     except Exception as e:
         print(f"[API-FOOTBALL] Excepción inesperada: {e}")
         return {}
@@ -676,21 +669,18 @@ LIGAS_CURADAS = {
 @app.get("/api/ligas-disponibles")
 async def ligas_disponibles():
     ligas_resultado = []
-    mundial_activo  = False
-
+    mundial_activo = False
+    
     if FOOTBALL_API_KEY:
         headers = {
             "x-rapidapi-host": "v3.football.api-sports.io",
-            "x-rapidapi-key":  FOOTBALL_API_KEY,
+            "x-rapidapi-key": FOOTBALL_API_KEY,
         }
-
-        # 1. Mundial: probar IDs 1 y 732
-        # - mundial_id_activo: el ID que tiene fixtures
-        # - mundial_activo: True solo si hay partido EN VIVO ahora mismo
+        
+        # 1. Mundial: Mantener siempre fijo arriba de todo
         mundial_id_activo = None
         for wid in MUNDIAL_2026_IDS:
             try:
-                # Primero verificar si hay partido en vivo
                 r_live = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={"league": wid, "season": MUNDIAL_2026_SEASON, "live": "all"},
@@ -698,10 +688,10 @@ async def ligas_disponibles():
                 )
                 if r_live.status_code == 200 and r_live.json().get("response"):
                     mundial_id_activo = wid
-                    mundial_activo    = True
+                    mundial_activo = True
                     print(f"[LIGAS] [OK] Mundial 2026 EN VIVO con league_id={wid}")
                     break
-                # Si no hay en vivo, verificar que al menos hay fixtures históricos
+                
                 r_last = requests.get(
                     f"{API_FOOTBALL_BASE}/fixtures",
                     params={"league": wid, "season": MUNDIAL_2026_SEASON, "last": 1},
@@ -709,25 +699,25 @@ async def ligas_disponibles():
                 )
                 if r_last.status_code == 200 and r_last.json().get("response"):
                     mundial_id_activo = wid
-                    # mundial_activo permanece False — no hay partido en vivo
                     print(f"[LIGAS] [OK] Mundial 2026 con historial, league_id={wid}")
                     break
             except Exception as e:
                 print(f"[LIGAS] Error verificando mundial id={wid}: {e}")
-
+                
         ligas_resultado.append({
-            "id":         mundial_id_activo or 1,
-            "nombre":     "🏆 Mundial 2026",
-            "pais":       "Internacional",
-            "badge":      "[EN VIVO]" if mundial_activo else "[MUNDIAL]",
+            "id": mundial_id_activo or MUNDIAL_2026_IDS[0],
+            "nombre": " Mundial 2026",
+            "pais": "Internacional",
+            "badge": "[EN VIVO]" if mundial_activo else "[MUNDIAL]",
             "es_mundial": True,
-            "activo":     mundial_activo,
-            "separador":  False,
+            "activo": mundial_activo,
+            "separador": False,
         })
-
-        # 2. Ligas curadas
-        TEMPORADAS = [2025, 2026, 2024]
+        
+        # 2. Ligas curadas (Priorizamos año corriente 2026)
+        TEMPORADAS = [2026, 2025, 2024]
         for lid, (nombre, emoji) in LIGAS_CURADAS.items():
+            agregada = False
             for season in TEMPORADAS:
                 try:
                     r = requests.get(
@@ -740,29 +730,41 @@ async def ligas_disponibles():
                         if resp:
                             pais_api = resp[0].get("league", {}).get("country", "")
                             ligas_resultado.append({
-                                "id":         lid,
-                                "nombre":     nombre,
-                                "pais":       f"{emoji} {pais_api}" if pais_api else emoji,
-                                "badge":      "[ACTIVA]",
+                                "id": lid,
+                                "nombre": nombre,
+                                "pais": f"{emoji} {pais_api}" if pais_api else emoji,
+                                "badge": "[ACTIVA]",
                                 "es_mundial": False,
-                                "activo":     True,
-                                "season":     season,
+                                "activo": True,
+                                "season": season,
                             })
                             print(f"[LIGAS] [OK] {nombre} activa en season={season}")
+                            agregada = True
                             break
                 except Exception as e:
                     print(f"[LIGAS] Error verificando {nombre} season={season}: {e}")
-
+            
+            # FALLBACK: Si no trae datos del último partido de la API, la insertamos igual para que no diga "Sin información"
+            if not agregada:
+                ligas_resultado.append({
+                    "id": lid,
+                    "nombre": nombre,
+                    "pais": emoji,
+                    "badge": "[DISPONIBLE]",
+                    "es_mundial": False,
+                    "activo": False,
+                    "season": MUNDIAL_2026_SEASON,
+                })
     else:
         ligas_resultado.append({
-            "id": 1, "nombre": "🏆 Mundial 2026", "pais": "Internacional",
+            "id": 1, "nombre": " Mundial 2026", "pais": "Internacional",
             "badge": "[MUNDIAL]", "es_mundial": True, "activo": False,
         })
-
+        
     return {
-        "ligas":          ligas_resultado,
+        "ligas": ligas_resultado,
         "mundial_activo": mundial_activo,
-        "total":          len(ligas_resultado),
+        "total": len(ligas_resultado),
     }
 
 
