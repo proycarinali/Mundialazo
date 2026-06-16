@@ -415,7 +415,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 return {"tipo_contenido": "error", "contexto": "La base de datos y la IA están fuera de servicio."}
 
         # =============================================================================
-        # 3. TU PARSEO ORIGINAL DE DATOS REALES (Mantenido intacto y cerrado correctamente)
+        # 3. TU PARSEO ORIGINAL DE DATOS REALES
         # =============================================================================
         fix      = fixture_data.get("fixture", {})
         league   = fixture_data.get("league", {})
@@ -475,7 +475,21 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             f"{(' Eventos: ' + eventos_str + '.') if eventos_str else ''}"
         )
 
-       return {"tipo_contenido": "partido_real","fixture_id":  fixture_id,"clave":       clave,"descripcion": descripcion,"tipo":        tipo,"contexto":    contexto,"league_id":   league_id_usado,"season":      fixture_data.get("league", {}).get("season"),}
+    return {
+            "tipo_contenido": "partido_real",
+            "fixture_id":  fixture_id,
+            "clave":       clave,
+            "descripcion": descripcion,
+            "tipo":        tipo,
+            "contexto":    contexto,
+            "league_id":   league_id_usado,
+            "season":      fixture_data.get("league", {}).get("season"),
+        }
+
+    except Exception as e:
+        print(f"[API-FOOTBALL] Excepción inesperada en el flujo maestro: {e}")
+        return {}
+
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
 # =============================================================================
