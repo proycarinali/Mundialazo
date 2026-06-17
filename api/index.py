@@ -273,17 +273,15 @@ import os
 import requests
 from datetime import datetime
 
-
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido (finalizado o en curso) del Mundial 2026
     (o de la liga indicada por league_id) usando la API-Football (api-sports.io).
-    Si se pasa season, usa esa temporada. Si no, para ligas no-Mundial prueba
-    2025 y 2026 automáticamente (ligas europeas usan season=2025).
     """
     if not FOOTBALL_API_KEY:
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada, usando ESPN como fallback.")
-        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+        # CORRECCIÓN 1: Se cambia la función inexistente por la de contingencia real
+        return obtener_partido_mundial_contingencia(league_id or MUNDIAL_2026_IDS[0])
 
     headers = {
         "x-rapidapi-host": "v3.football.api-sports.io",
@@ -293,11 +291,10 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     try:
         fixture_data = None
         tipo = None
-        league_id_usado = league_id  # Para liga específica; se sobreescribe en bloque Mundial
+        league_id_usado = league_id 
 
         if league_id is not None:
             # ── Liga específica solicitada ──────────────────────────────────────
-            # Si se pasó season explícita usarla, sino probar 2025 y 2026
             seasons_a_probar = [season] if season else [2025, 2026, 2024]
 
             for s in seasons_a_probar:
@@ -350,7 +347,8 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             # ── Mundial: probar IDs 1 y 732 ─────────────────────────────────────
             fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
             if not fixture_data:
-                return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+                # CORRECCIÓN 2: Se cambia la función inexistente por la de contingencia real
+                return obtener_partido_mundial_contingencia(MUNDIAL_2026_IDS[0])
 
         # ── Extraer datos del fixture ────────────────────────────────────────────
         fix      = fixture_data.get("fixture", {})
@@ -378,7 +376,6 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
 
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
-        # FIX: La clave incluye el league_id para evitar mezcla de preguntas entre ligas
         clave       = f"{league_id_usado}_{fixture_id}"
 
         # Obtener eventos del partido para el contexto (goles, tarjetas)
@@ -424,9 +421,8 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
 
     except Exception as e:
         print(f"[API-FOOTBALL] Excepción: {e}. Fallback a ESPN.")
-        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
-
-
+        # CORRECCIÓN 3: Se cambia la función inexistente por la de contingencia real
+        return obtener_partido_mundial_contingencia(league_id or MUNDIAL_2026_IDS[0])
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
 # =============================================================================
