@@ -280,7 +280,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     """
     if not FOOTBALL_API_KEY:
         print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada, usando ESPN como fallback.")
-        # CORRECCIÓN 1: Se cambia la función inexistente por la de contingencia real
+        # MODIFICADO SOLO ESTA LÍNEA
         return obtener_partido_mundial_contingencia(league_id or MUNDIAL_2026_IDS[0])
 
     headers = {
@@ -347,7 +347,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
             # ── Mundial: probar IDs 1 y 732 ─────────────────────────────────────
             fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
             if not fixture_data:
-                # CORRECCIÓN 2: Se cambia la función inexistente por la de contingencia real
+                # MODIFICADO SOLO ESTA LÍNEA
                 return obtener_partido_mundial_contingencia(MUNDIAL_2026_IDS[0])
 
         # ── Extraer datos del fixture ────────────────────────────────────────────
@@ -421,11 +421,8 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
 
     except Exception as e:
         print(f"[API-FOOTBALL] Excepción: {e}. Fallback a ESPN.")
-        # CORRECCIÓN 3: Se cambia la función inexistente por la de contingencia real
+        # MODIFICADO SOLO ESTA LÍNEA
         return obtener_partido_mundial_contingencia(league_id or MUNDIAL_2026_IDS[0])
-# =============================================================================
-# 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
-# =============================================================================
 def verificar_estado_api_test():
     """
     Ejecuta un diagnóstico interno para validar que la integración con la API
