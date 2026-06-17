@@ -274,6 +274,53 @@ import requests
 from datetime import datetime
 
 
+def _buscar_fixture_mundial(headers: dict):
+    """
+    Busca el fixture más reciente del Mundial 2026 probando los IDs en MUNDIAL_2026_IDS.
+    Retorna (fixture_data, tipo, league_id_usado) o (None, None, None).
+    """
+    for wid in MUNDIAL_2026_IDS:
+        # 1. En vivo
+        try:
+            res_live = requests.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                params={"league": wid, "season": MUNDIAL_2026_SEASON, "live": "all"},
+                headers=headers,
+                timeout=8,
+            )
+            if res_live.status_code == 200:
+                fixtures = res_live.json().get("response", [])
+                if fixtures:
+                    print(f"[MUNDIAL] ✅ En vivo con league_id={wid}")
+                    return fixtures[0], "en_curso", wid
+        except Exception as e:
+            print(f"[MUNDIAL] Error en vivo id={wid}: {e}")
+
+        # 2. Último finalizado
+        try:
+            res_fin = requests.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                params={
+                    "league": wid,
+                    "season": MUNDIAL_2026_SEASON,
+                    "status": "FT-AET-PEN",
+                    "last": 1,
+                },
+                headers=headers,
+                timeout=8,
+            )
+            if res_fin.status_code == 200:
+                fixtures = res_fin.json().get("response", [])
+                if fixtures:
+                    print(f"[MUNDIAL] ✅ Finalizado con league_id={wid}")
+                    return fixtures[0], "finalizado", wid
+        except Exception as e:
+            print(f"[MUNDIAL] Error finalizado id={wid}: {e}")
+
+    print("[MUNDIAL] ❌ No se encontró fixture en ningún ID.")
+    return None, None, None
+
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido (finalizado o en curso) del Mundial 2026
