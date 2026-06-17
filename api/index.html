@@ -659,7 +659,6 @@ function cambiarPantalla(id) {
 
 function volverAlMenu() {
     cambiarPantalla('scr-menu');
-    // Recargar ligas si no hay cache
     if (!ligasCache) cargarMenuPrincipal();
 }
 
@@ -671,7 +670,6 @@ async function cargarMenuPrincipal() {
         const data = await res.json();
         ligasCache = data;
 
-        // Actualizar card del Mundial
         const mundialCard = document.getElementById('mundial-card');
         const mundialLabel = document.getElementById('mundial-label');
         const mundialSubtitulo = document.getElementById('mundial-subtitulo');
@@ -690,7 +688,6 @@ async function cargarMenuPrincipal() {
             }
         }
 
-        // Ligas no mundialistas
         const otrasLigas = data.ligas.filter(l => !l.es_mundial);
         renderizarLigasMenu(otrasLigas, false);
 
@@ -731,13 +728,11 @@ function escHtml(str) {
     return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-// Cargar al iniciar
 cargarMenuPrincipal();
 
-// ─── Selección desde el menú principal ───────────────────────────────────────
+// ─── Selección desde el menú principal MODIFICADO PARA LIGAS DE FÚTBOL ──────────
 async function seleccionarLigaDesdeMenu(tipo, ligaId, ligaNombre, ligaSeason) {
     if (tipo === 'mundial') {
-        // Leer datos del card
         const card = document.getElementById('mundial-card');
         ligaId     = parseInt(card.dataset.ligaId) || 1;
         ligaNombre = 'Mundial 2026';
@@ -758,15 +753,19 @@ async function seleccionarLigaDesdeMenu(tipo, ligaId, ligaNombre, ligaSeason) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
 
-        if (data.error) throw new Error(data.error);
+        // Si la API responde con un error o no tiene partido válido para esta liga, saltamos a trivia general
+        if (data.error || !data.clave || data.clave === "") {
+            console.log("No hay partido activo para esta liga. Iniciando trivia general...");
+            await arrancarTriviaGenerica(ligaId, ligaNombre, ligaSeason);
+            return;
+        }
 
         partidoActual = { ...data, liga_id: ligaId, season: ligaSeason };
         mostrarConfirmacionPartido(partidoActual);
 
     } catch (err) {
-        console.error('Error cargando partido:', err);
-        cambiarPantalla('scr-menu');
-        alert(`⚠️ Error al buscar partido de ${ligaNombre}: ${err.message}`);
+        console.warn('Error cargando partido en vivo, redirigiendo a trivia genérica:', err);
+        await arrancarTriviaGenerica(ligaId, ligaNombre, ligaSeason);
     }
 }
 
