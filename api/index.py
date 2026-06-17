@@ -913,6 +913,14 @@ async def mundial_info(liga_id: int = None, season: int = None):
 
     ultimo_partido_api = obtener_ultimo_partido_api_football(league_id=liga_id, season=season)
 
+    # Si es una liga de fútbol regular y la API no devolvió partidos vivos/recientes, evitamos fallar
+    if liga_id is not None and (not ultimo_partido_api or not ultimo_partido_api.get("clave")):
+        if ultimo_guardado and ultimo_guardado.get("clave"):
+            return {**ultimo_guardado, "desde_cache": True, "partido_nuevo_detectado": False}
+        else:
+            # Retornamos vacío controlado para activar la trivia genérica en el front
+            return {"error": "Sin partidos activos en este momento.", "clave": ""}
+
     hay_partido_nuevo = bool(
         ultimo_partido_api and ultimo_partido_api.get("clave")
         and ultimo_partido_api.get("clave") != clave_actual
@@ -924,7 +932,7 @@ async def mundial_info(liga_id: int = None, season: int = None):
         elif ultimo_guardado:
             return {**ultimo_guardado, "desde_cache": True, "partido_nuevo_detectado": False}
         else:
-            return {"error": "No se pudo obtener información del partido desde la API."}
+            return {"error": "No se pudo obtener información del partido desde la API.", "clave": ""}
 
         item = upsert_partido_historial(nuevo_partido)
         guardar_partido_rag(nuevo_partido)
@@ -933,7 +941,6 @@ async def mundial_info(liga_id: int = None, season: int = None):
         return {**item, "desde_cache": False, "partido_nuevo_detectado": hay_partido_nuevo}
 
     return {**ultimo_guardado, "desde_cache": True, "partido_nuevo_detectado": False}
-
 
 @app.get("/api/partidos-historial")
 async def partidos_historial():
