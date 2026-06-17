@@ -273,17 +273,17 @@ import os
 import requests
 from datetime import datetime
 
+
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
-    Obtiene el último partido usando tu lógica original de reintentos.
-    Si todo falla (incluyendo tu _buscar_fixture_mundial), conecta con Gemini 
-    usando GEMINI_API_KEY para devolver trivias dinámicas con nombres de ligas y equipos reales.
+    Obtiene el último partido (finalizado o en curso) del Mundial 2026
+    (o de la liga indicada por league_id) usando la API-Football (api-sports.io).
+    Si se pasa season, usa esa temporada. Si no, para ligas no-Mundial prueba
+    2025 y 2026 automáticamente (ligas europeas usan season=2025).
     """
-    global FOOTBALL_API_KEY, MUNDIAL_2026_IDS, API_FOOTBALL_BASE
-    
     if not FOOTBALL_API_KEY:
-        print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada.")
-        return {}
+        print("[API-FOOTBALL] No hay FOOTBALL_API_KEY configurada, usando ESPN como fallback.")
+        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
 
     headers = {
         "x-rapidapi-host": "v3.football.api-sports.io",
@@ -293,21 +293,17 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
     try:
         fixture_data = None
         tipo = None
-        league_id_usado = league_id
+        league_id_usado = league_id  # Para liga específica; se sobreescribe en bloque Mundial
 
-        # 1. TU LÓGICA ORIGINAL DE CONSULTA (Mantenida intacta)
         if league_id is not None:
-            if isinstance(MUNDIAL_2026_IDS, list) and league_id in MUNDIAL_2026_IDS:
-                seasons_a_probar = [2026]
-            elif str(league_id) == str(MUNDIAL_2026_IDS):
-                seasons_a_probar = [2026]
-            else:
-                seasons_a_probar = [season] if season else [2025, 2026, 2024]
+            # ── Liga específica solicitada ──────────────────────────────────────
+            # Si se pasó season explícita usarla, sino probar 2025 y 2026
+            seasons_a_probar = [season] if season else [2025, 2026, 2024]
 
             for s in seasons_a_probar:
                 if fixture_data:
                     break
-                # Intento en vivo
+                # Buscar en vivo primero
                 try:
                     res_live = requests.get(
                         f"{API_FOOTBALL_BASE}/fixtures",
@@ -325,11 +321,16 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 except Exception as e:
                     print(f"[API-FOOTBALL] Error en vivo liga={league_id} season={s}: {e}")
 
-                # Intento finalizado
+                # Luego buscar último finalizado
                 try:
                     res_fin = requests.get(
                         f"{API_FOOTBALL_BASE}/fixtures",
-                        params={"league": league_id, "season": s, "last": 1},
+                        params={
+                            "league": league_id,
+                            "season": s,
+                            "status": "FT-AET-PEN",
+                            "last":   1,
+                        },
                         headers=headers,
                         timeout=8,
                     )
@@ -342,81 +343,16 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 except Exception as e:
                     print(f"[API-FOOTBALL] Error finalizado liga={league_id} season={s}: {e}")
 
-            # Llamada a tu subfunción original de rescate si el bucle falla
             if not fixture_data:
-                print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id}. Probando tu fallback global...")
-                try:
-                    fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
-                except Exception as e:
-                    print(f"[API-FOOTBALL] Tu subfunción _buscar_fixture_mundial falló o no existe: {e}")
+                print(f"[API-FOOTBALL] Sin fixtures para league_id={league_id}.")
+                return {}
         else:
-            # Caso donde league_id es None de origen
-            try:
-                fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
-            except Exception as e:
-                print(f"[API-FOOTBALL] Tu subfunción _buscar_fixture_mundial falló o no existe: {e}")
+            # ── Mundial: probar IDs 1 y 732 ─────────────────────────────────────
+            fixture_data, tipo, league_id_usado = _buscar_fixture_mundial(headers)
+            if not fixture_data:
+                return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
 
-        # =============================================================================
-        # 2. 🤖 NUEVO PARACAÍDAS DE EMERGENCIA: SI LA API SE QUEDÓ COMPLETAMENTE VACÍA
-        # =============================================================================
-        if not fixture_data:
-            id_error = league_id if league_id is not None else 1
-            id_error = int(id_error)
-            
-            if (isinstance(MUNDIAL_2026_IDS, list) and id_error in MUNDIAL_2026_IDS) or str(id_error) == str(MUNDIAL_2026_IDS):
-                nombre_liga_humano = "el Mundial de la FIFA"
-            elif id_error == 39:
-                nombre_liga_humano = "la Premier League de Inglaterra"
-            elif id_error == 140:
-                nombre_liga_humano = "LaLiga de España"
-            else:
-                nombre_liga_humano = f"la liga con ID {id_error}"
-
-            print(f"[🤖 GEMINI-AI] Red de fútbol totalmente caída. Generando preguntas para {nombre_liga_humano}...")
-            
-            gemini_key = os.environ.get("GEMINI_API_KEY")
-            if not gemini_key:
-                print("[🤖 GEMINI-AI] Error: Falta GEMINI_API_KEY en las variables de Railway.")
-                return {"tipo_contenido": "error", "contexto": "No hay partidos y la IA no tiene credenciales."}
-
-            try:
-                url_gemini = "https://googleapis.com"
-                params_gemini = {"key": gemini_key}
-                
-                prompt = f"""
-                Genera una trivia interactiva de 3 preguntas interesantes y avanzadas sobre {nombre_liga_humano}.
-                REQUISITO IMPRESCINDIBLE: Al menos 2 preguntas deben detallar un partido real especificar qué selecciones o equipos jugaron entre sí (quién contra quién) y qué ocurrió.
-                
-                Responde estrictamente con este formato JSON:
-                {{
-                    "tipo_contenido": "trivia_ia",
-                    "tema": "{nombre_liga_humano}",
-                    "preguntas": [
-                        {{
-                            "pregunta": "Texto de la pregunta detallando el enfrentamiento de quién contra quién",
-                            "opciones": ["Opción A", "Opción B", "Opción C", "Opción D"],
-                            "respuesta_correcta": "La opción exacta que coincide"
-                        }}
-                    ]
-                }}
-                Devuelve solo el JSON crudo, sin bloques de código markdown, sin ```json ni textos adicionales.
-                """
-                
-                payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": {"responseMimeType": "application/json"}}
-                res_gemini = requests.post(url_gemini, params=params_gemini, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-                
-                if res_gemini.status_code == 200:
-                    import json
-                    return json.loads(res_gemini.json()['candidates']['content']['parts']['text'])
-                else:
-                    raise Exception(f"API de Google respondió con código {res_gemini.status_code}")
-            except Exception as e:
-                print(f"[🤖 GEMINI-AI] Falló la contingencia de la IA: {e}")
-                return {"tipo_contenido": "error", "contexto": "La base de datos y la IA están fuera de servicio."}
-
-        # =============================================================================
-        # 3. TU PARSEO ORIGINAL DE DATOS REALES
-        # =============================================================================
+        # ── Extraer datos del fixture ────────────────────────────────────────────
         fix      = fixture_data.get("fixture", {})
         league   = fixture_data.get("league", {})
         teams    = fixture_data.get("teams", {})
@@ -431,32 +367,32 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         arbitro    = fix.get("referee", "")
         ronda      = league.get("round", "")
 
-        home    = teams.get("home", {}).get("name", "")
-        away    = teams.get("away", {}).get("name", "")
-        goles_h = goals.get("home", "")
-        goles_a = goals.get("away", "")
+        home       = teams.get("home", {}).get("name", "")
+        away       = teams.get("away", {}).get("name", "")
+        goles_h    = goals.get("home", "")
+        goles_a    = goals.get("away", "")
 
+        # Penales
         pen_h = score.get("penalty", {}).get("home")
         pen_a = score.get("penalty", {}).get("away")
         penales_str = f" (pen. {pen_h}-{pen_a})" if pen_h is not None and pen_a is not None else ""
 
         descripcion = f"{ronda}: {home} {goles_h}{penales_str}-{goles_a} {away}".strip(": ")
+        # FIX: La clave incluye el league_id para evitar mezcla de preguntas entre ligas
         clave       = f"{league_id_usado}_{fixture_id}"
 
+        # Obtener eventos del partido para el contexto (goles, tarjetas)
         if not events:
-            try:
-                res_detail = requests.get(
-                    f"{API_FOOTBALL_BASE}/fixtures",
-                    params={"id": fixture_id},
-                    headers=headers,
-                    timeout=8,
-                )
-                if res_detail.status_code == 200:
-                    det_list = res_detail.json().get("response", [])
-                    if det_list:
-                        events = det_list[0].get("events", [])
-            except Exception:
-                pass
+            res_detail = requests.get(
+                f"{API_FOOTBALL_BASE}/fixtures",
+                params={"id": fixture_id},
+                headers=headers,
+                timeout=8,
+            )
+            if res_detail.status_code == 200:
+                det_list = res_detail.json().get("response", [])
+                if det_list:
+                    events = det_list[0].get("events", [])
 
         eventos_texto = []
         for ev in events[:20]:
@@ -468,6 +404,7 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
                 eventos_texto.append(f"min.{minuto} {detalle} {jugador} ({equipo})")
 
         eventos_str = "; ".join(eventos_texto) if eventos_texto else ""
+
         contexto = (
             f"{descripcion}. Fecha: {fecha}. "
             f"Estadio: {estadio}{', ' + ciudad if ciudad else ''}. "
@@ -476,18 +413,19 @@ def obtener_ultimo_partido_api_football(league_id: int = None, season: int = Non
         )
 
         return {
-            "tipo_contenido": "partido_real",
-            "fixture_id": fixture_id,
-            "clave": clave,
+            "fixture_id":  fixture_id,
+            "clave":       clave,
             "descripcion": descripcion,
-            "tipo": tipo,
-            "contexto": contexto,
-            "league_id": league_id_usado,
-            "season": fixture_data.get("league", {}).get("season"),
+            "tipo":        tipo,
+            "contexto":    contexto,
+            "league_id":   league_id_usado,
+            "season":      fixture_data.get("league", {}).get("season", MUNDIAL_2026_SEASON),
         }
+
     except Exception as e:
-        print(f"[API-FOOTBALL] Excepción inesperada en el flujo maestro: {e}")
-        return {}
+        print(f"[API-FOOTBALL] Excepción: {e}. Fallback a ESPN.")
+        return obtener_ultimo_partido_mundial2026_ESPN_DESUSO()
+
 
 # =============================================================================
 # 2. SUITE DE TEST INTEGRADA (Agregar al final de tu archivo index.py)
