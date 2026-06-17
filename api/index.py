@@ -274,53 +274,6 @@ import requests
 from datetime import datetime
 
 
-def _buscar_fixture_mundial(headers: dict):
-    """
-    Busca el fixture más reciente del Mundial 2026 probando los IDs en MUNDIAL_2026_IDS.
-    Retorna (fixture_data, tipo, league_id_usado) o (None, None, None).
-    """
-    for wid in MUNDIAL_2026_IDS:
-        # 1. En vivo
-        try:
-            res_live = requests.get(
-                f"{API_FOOTBALL_BASE}/fixtures",
-                params={"league": wid, "season": MUNDIAL_2026_SEASON, "live": "all"},
-                headers=headers,
-                timeout=8,
-            )
-            if res_live.status_code == 200:
-                fixtures = res_live.json().get("response", [])
-                if fixtures:
-                    print(f"[MUNDIAL] ✅ En vivo con league_id={wid}")
-                    return fixtures[0], "en_curso", wid
-        except Exception as e:
-            print(f"[MUNDIAL] Error en vivo id={wid}: {e}")
-
-        # 2. Último finalizado
-        try:
-            res_fin = requests.get(
-                f"{API_FOOTBALL_BASE}/fixtures",
-                params={
-                    "league": wid,
-                    "season": MUNDIAL_2026_SEASON,
-                    "status": "FT-AET-PEN",
-                    "last": 1,
-                },
-                headers=headers,
-                timeout=8,
-            )
-            if res_fin.status_code == 200:
-                fixtures = res_fin.json().get("response", [])
-                if fixtures:
-                    print(f"[MUNDIAL] ✅ Finalizado con league_id={wid}")
-                    return fixtures[0], "finalizado", wid
-        except Exception as e:
-            print(f"[MUNDIAL] Error finalizado id={wid}: {e}")
-
-    print("[MUNDIAL] ❌ No se encontró fixture en ningún ID.")
-    return None, None, None
-
-
 def obtener_ultimo_partido_api_football(league_id: int = None, season: int = None) -> dict:
     """
     Obtiene el último partido (finalizado o en curso) del Mundial 2026
@@ -796,29 +749,21 @@ async def root():
 # ===============================================================================
 
 LIGAS_CURADAS = {
-    # Internacionales
+    # Internacionales — soportadas por BALLDONTLIE
     2:   ("UEFA Champions League",      "Intl"),
-    3:   ("UEFA Europa League",         "Intl"),
-    848: ("UEFA Europa Conference Lg",  "Intl"),
-    9:   ("Copa America",               "Amer"),
-    13:  ("Copa Libertadores",          "Amer"),
-    11:  ("Copa Sudamericana",          "Amer"),
-    # Europa
+    # Europa — soportadas por BALLDONTLIE
     39:  ("Premier League",             "ENG"),
     140: ("La Liga",                    "ESP"),
     135: ("Serie A",                    "ITA"),
     78:  ("Bundesliga",                 "GER"),
     61:  ("Ligue 1",                    "FRA"),
-    94:  ("Primeira Liga",              "POR"),
-    88:  ("Eredivisie",                 "NED"),
-    207: ("Super Lig",                  "TUR"),
-    # Sudamerica
-    128: ("Liga Argentina",             "ARG"),
-    71:  ("Brasileirao",                "BRA"),
-    265: ("Liga MX",                    "MEX"),
-    239: ("Primera Division Chile",     "CHI"),
-    281: ("Liga de Colombia",           "COL"),
-    242: ("Liga de Uruguay",            "URU"),
+    # Norteamérica — soportada por BALLDONTLIE
+    253: ("MLS",                        "USA"),
+    # Ligas NO incluidas (no soportadas por BALLDONTLIE con plan Free):
+    # Europa League (3), Conference League (848), Copa America (9),
+    # Copa Libertadores (13), Copa Sudamericana (11), Primeira Liga (94),
+    # Eredivisie (88), Super Lig (207), Liga Argentina (128),
+    # Brasileirao (71), Liga MX (265), Chile (239), Colombia (281), Uruguay (242)
 }
 
 @app.get("/api/ligas-disponibles")
@@ -863,10 +808,11 @@ async def ligas_disponibles():
             "id": mundial_id_activo or MUNDIAL_2026_IDS[0],
             "nombre": " Mundial 2026",
             "pais": "Internacional",
-            "badge": "[EN VIVO]" if mundial_activo else "[MUNDIAL]",
+            "badge": "[EN VIVO]" if mundial_activo else "[REQUIERE PLAN GOAT]",
             "es_mundial": True,
             "activo": mundial_activo,
             "separador": False,
+            "nota": "Los partidos del Mundial requieren el tier GOAT de BALLDONTLIE ($39.99/mes). Trivia disponible con api-football.",
         })
         
         # 2. Ligas curadas (Priorizamos año corriente 2026)
@@ -913,7 +859,8 @@ async def ligas_disponibles():
     else:
         ligas_resultado.append({
             "id": 1, "nombre": " Mundial 2026", "pais": "Internacional",
-            "badge": "[MUNDIAL]", "es_mundial": True, "activo": False,
+            "badge": "[REQUIERE PLAN GOAT]", "es_mundial": True, "activo": False,
+            "nota": "Los partidos del Mundial requieren el tier GOAT de BALLDONTLIE ($39.99/mes).",
         })
         
     return {
