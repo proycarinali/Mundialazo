@@ -25,7 +25,7 @@ app.add_middleware(
  
 GROK_API_KEY   = os.environ.get("GROK_API_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-FOOTBALL_API_KEY = os.environ.get("FOOTBALL_API_KEY")
+FOOTBALL_API_KEY = os.environ.get("BALDONLITE")
  
 # --- Archivos RAG ------------------------------------------------------------
 DIR = os.path.dirname(__file__)
