@@ -563,31 +563,32 @@ async function iniciarTrivia() {
     indicePregunta = 0;
     document.getElementById('local-score').textContent = '0 pts';
 
-    // 1. Validamos qué partido seleccionó el usuario
-    const partidoLabel = partidoSeleccionado ? partidoSeleccionado.label : '';
-    const partidoId = partidoSeleccionado ? (partidoSeleccionado.id || '') : '';
-    
-    document.getElementById('loading-msg').textContent = `Generando trivia para: ${partidoLabel}...`;
-
-    // 2. Construimos la URL con Query Parameters dinámicos
-    const urlEndpoint = `/api/trivias?partido_nombre=${encodeURIComponent(partidoLabel)}`;
-    const res = await fetch(urlEndpoint);
-    
-    if (partidoId) {
-        urlEndpoint += `&partido_id=${encodeURIComponent(partidId)}`;
+    // CORRECCIÓN: Le pasamos al endpoint el nombre exacto del partido seleccionado
+    let endpoint = '/api/trivias';
+    if (partidoSeleccionado && partidoSeleccionado.label) {
+        endpoint += `?partido_nombre=${encodeURIComponent(partidoSeleccionado.label)}`;
     }
 
+    document.getElementById('loading-msg').textContent =
+        `Generando trivia para: ${partidoSeleccionado ? partidoSeleccionado.label : ''}...`;
+
     try {
-        const res = await fetch(urlEndpoint);
+        const res = await fetch(endpoint);
         if (!res.ok) throw new Error('Error de servidor');
         const datos = await res.json();
-        if (datos.error) throw new Error(datos.error);
+        
+        // Si el backend nos responde con un error estructurado, lanzamos un alert con el motivo real
+        if (datos.error) {
+            alert("No se pudo armar la trivia para este partido.\nMotivo: " + datos.error);
+            volverAlMenu();
+            return;
+        }
         
         preguntasPartida = (datos.preguntas && datos.preguntas.length > 0)
             ? datos.preguntas
             : BANCO_NATIVO;
     } catch (err) {
-        console.warn('Backend no disponible o error en respuesta, usando banco local.', err);
+        console.warn('Backend no disponible, usando banco local.', err);
         preguntasPartida = BANCO_NATIVO;
     }
 
