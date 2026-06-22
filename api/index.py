@@ -20,6 +20,10 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
+# CORRECCIÓN DE LA URL: Si la URL no empieza con http:// o https://, se lo agregamos automáticamente
+if SUPABASE_URL and not SUPABASE_URL.startswith(("http://", "https://")):
+    SUPABASE_URL = f"https://{SUPABASE_URL}"
+
 openai_client = None
 if OPENAI_API_KEY:
     openai_client = OpenAI(api_key=OPENAI_API_KEY)
@@ -46,7 +50,6 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
 
     try:
         if nombre_partido:
-            # Tomamos la primera palabra del partido para buscar coincidencias parciales en Supabase
             nombre_limpio = nombre_partido.split(" ")[0] if " " in nombre_partido else nombre_partido
             
             partidos = supabase_get("partidos", {
@@ -69,7 +72,7 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
             })
 
         if not partidos:
-            resultado["detalles"]["partido"] = "No se encontraron partidos"
+            resultado["detalles"]["partido"] = "No se encontraron partidos coincidentes en la Base de Datos"
             return resultado
 
         partido = partidos[0]
@@ -83,13 +86,11 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
         resultado["detalles"]["ganador"] = partido.get("ganador", "N/A")
         resultado["detalles"]["tanda_penales"] = partido.get("tanda_penales", False)
 
-        # Jugadores del partido
         jugadores_rows = supabase_get("jugadores_partido", {
             "id_partido": f"eq.{id_partido}",
             "select": "*",
         })
 
-        # Eventos del partido
         eventos_rows = supabase_get("eventos_partido", {
             "id_partido": f"eq.{id_partido}",
             "select": "*",
@@ -102,6 +103,7 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
                 continue
             if jid not in stats:
                 stats[jid] = {"goles": 0, "asistencias": 0, "tarjetas_amarillas": 0, "tarjetas_rojas": 0}
+            
             tipo = (ev.get("tipo_evento") or "").lower()
             if tipo in ("goal", "gol", "penalty"):
                 stats[jid]["goles"] += 1
@@ -139,20 +141,14 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
     return resultado
 
 
-# === CORRECCIÓN AQUÍ: Esta ruta vuelve a renderizar tu index.html original ===
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    # Intenta buscar 'index.html' en la misma carpeta que este script index.py
-    # Asegúrate de cambiarle el nombre a tu archivo descargado 'index (31).html' a simplemente 'index.html'
     ruta_html = os.path.join(os.path.dirname(__file__), "index.html")
-    
     if not os.path.exists(ruta_html):
         return HTMLResponse(
-            content="<h2>Error: No se encontró el archivo index.html en el servidor.</h2>"
-                    "<p>Asegúrate de renombrar tu archivo frontend a 'index.html' en la misma carpeta que index.py.</p>",
+            content="<h2>Error: No se encontró el archivo index.html en el servidor.</h2>",
             status_code=404
         )
-        
     with open(ruta_html, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
 
@@ -187,16 +183,15 @@ async def obtener_trivias(partido_nombre: str = None):
 
     info_jugadores = datos.get("jugadores", [])[:15]
 
-    # Si no hay datos en la BD, le pedimos a la IA que use su conocimiento histórico del partido enviado
     if not info_jugadores:
         if not partido_nombre:
-            return {"error": "No se encontraron datos en la Base de Datos para armar la trivia y no se envió un nombre de partido válido."}
+            return {"error": "No se encontraron datos en Supabase y no se especificó un partido_nombre."}
         
         prompt_contenido = (
             f"Eres un experto en fútbol. Basándote en tus conocimientos históricos reales del partido '{partido_nombre}', "
             f"crea exactamente 12 preguntas de trivia variadas y desafiantes. "
-            f"Incluye detalles sobre goles, sustituciones, estadísticas o hitos. "
-            f"IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas de la realidad histórica de ese juego. "
+            f"Incluye detalles sobre goleadores, sustituciones clave, estadísticas del partido o contexto. "
+            f"IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas de la realidad de ese partido. "
             f"Formato de salida SOLO JSON sin texto adicional ni backticks: "
             f"{{\"preguntas\": [{{\"\pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}}]}}"
         )
@@ -219,4 +214,4 @@ async def obtener_trivias(partido_nombre: str = None):
         texto = raw_text.replace("```json", "").replace("```", "").strip()
         return json.loads(texto)
     except Exception as e:
-        return {"error": f"No se pudo estructurar la trivia debido a un fallo con OpenAI: {str(e)}"}
+        return {"error": f"Error procesando la respuesta o estructura JSON de OpenAI: {str(e)}"}
