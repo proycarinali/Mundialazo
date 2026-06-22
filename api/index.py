@@ -45,19 +45,16 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
         return resultado
 
     try:
-        # Si el frontend envía el nombre del partido, lo buscamos dinámicamente
         if nombre_partido:
-            # Tomamos la primera palabra clave del string (ej: "Real Madrid" -> "Real") para mitigar discrepancias
+            # Tomamos la primera palabra del partido para buscar coincidencias parciales en Supabase
             nombre_limpio = nombre_partido.split(" ")[0] if " " in nombre_partido else nombre_partido
             
-            # Intentamos buscar coincidencia en el equipo local
             partidos = supabase_get("partidos", {
                 "equipo_local_nombre": f"ilike.*{nombre_limpio}*",
                 "limit": 1,
                 "select": "*",
             })
             
-            # Si no hubo coincidencia, intentamos con el visitante
             if not partidos:
                 partidos = supabase_get("partidos", {
                     "equipo_visitante_nombre": f"ilike.*{nombre_limpio}*",
@@ -65,7 +62,6 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
                     "select": "*",
                 })
         else:
-            # Fallback histórico: trae el último partido si no se recibe parámetro
             partidos = supabase_get("partidos", {
                 "order": "fecha_partido.desc",
                 "limit": 1,
@@ -73,7 +69,7 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
             })
 
         if not partidos:
-            resultado["detalles"]["partido"] = "No se encontraron partidos coincidentes en la Base de Datos"
+            resultado["detalles"]["partido"] = "No se encontraron partidos"
             return resultado
 
         partido = partidos[0]
@@ -87,13 +83,13 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
         resultado["detalles"]["ganador"] = partido.get("ganador", "N/A")
         resultado["detalles"]["tanda_penales"] = partido.get("tanda_penales", False)
 
-        # 2. Obtener Jugadores del partido
+        # Jugadores del partido
         jugadores_rows = supabase_get("jugadores_partido", {
             "id_partido": f"eq.{id_partido}",
             "select": "*",
         })
 
-        # 3. Obtener Eventos para calcular estadísticas reales
+        # Eventos del partido
         eventos_rows = supabase_get("eventos_partido", {
             "id_partido": f"eq.{id_partido}",
             "select": "*",
@@ -106,7 +102,6 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
                 continue
             if jid not in stats:
                 stats[jid] = {"goles": 0, "asistencias": 0, "tarjetas_amarillas": 0, "tarjetas_rojas": 0}
-            
             tipo = (ev.get("tipo_evento") or "").lower()
             if tipo in ("goal", "gol", "penalty"):
                 stats[jid]["goles"] += 1
@@ -117,14 +112,12 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
             elif tipo in ("redcard", "tarjeta roja", "red card"):
                 stats[jid]["tarjetas_rojas"] += 1
 
-            # Si el evento identifica un asistente, sumamos su asistencia
             aid = ev.get("id_asistente")
             if aid and tipo in ("goal", "gol", "penalty"):
                 if aid not in stats:
                     stats[aid] = {"goles": 0, "asistencias": 0, "tarjetas_amarillas": 0, "tarjetas_rojas": 0}
                 stats[aid]["asistencias"] += 1
 
-        # Mapeamos la lista final de jugadores con sus contadores calculados
         for jug in jugadores_rows:
             jid = jug.get("id_jugador", "")
             s = stats.get(jid, {})
@@ -146,22 +139,22 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
     return resultado
 
 
-@app.get("/")
-def home():
-    html_content = """
-    <html>
-        <head><title>Golazo IA Backend</title></head>
-        <body style="font-family:sans-serif; padding:40px; background:#0b0f19; color:#f3f4f6;">
-            <h1>⚽ Golazo IA - Backend Activo</h1>
-            <p>Endpoints disponibles:</p>
-            <ul>
-                <li><code>/api/trivias?partido_nombre=...</code> - Generar trivia dinámica</li>
-                <li><code>/api/test?partido_nombre=...</code> - Probar integraciones</li>
-            </ul>
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+# === CORRECCIÓN AQUÍ: Esta ruta vuelve a renderizar tu index.html original ===
+@app.get("/", response_class=HTMLResponse)
+async def root():
+    # Intenta buscar 'index.html' en la misma carpeta que este script index.py
+    # Asegúrate de cambiarle el nombre a tu archivo descargado 'index (31).html' a simplemente 'index.html'
+    ruta_html = os.path.join(os.path.dirname(__file__), "index.html")
+    
+    if not os.path.exists(ruta_html):
+        return HTMLResponse(
+            content="<h2>Error: No se encontró el archivo index.html en el servidor.</h2>"
+                    "<p>Asegúrate de renombrar tu archivo frontend a 'index.html' en la misma carpeta que index.py.</p>",
+            status_code=404
+        )
+        
+    with open(ruta_html, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
 
 
 @app.get("/api/test")
@@ -185,31 +178,28 @@ async def probar_apis(partido_nombre: str = None):
 @app.get("/api/trivias")
 async def obtener_trivias(partido_nombre: str = None):
     if not openai_client:
-        return {"error": "OPENAI_API_KEY no configurada en las variables de entorno"}
+        return {"error": "OPENAI_API_KEY no configurada"}
 
     datos = obtener_datos_partido_por_nombre(partido_nombre)
     
-    # Si ocurrió algún error de conexión o consulta en Supabase, lo informamos directamente
     if "error" in datos:
-        return {"error": f"Error en origen de datos (Supabase): {datos['error']}"}
-        
+        return {"error": f"Error conectando a las tablas de Supabase: {datos['error']}"}
+
     info_jugadores = datos.get("jugadores", [])[:15]
 
-    # Caso A: No hay datos de jugadores reales en la BD para este partido específico
+    # Si no hay datos en la BD, le pedimos a la IA que use su conocimiento histórico del partido enviado
     if not info_jugadores:
         if not partido_nombre:
-            return {"error": "No se encontraron datos en Supabase y tampoco se especificó un partido_nombre."}
+            return {"error": "No se encontraron datos en la Base de Datos para armar la trivia y no se envió un nombre de partido válido."}
         
-        # Le pedimos a la IA que use sus conocimientos globales sobre este partido específico
         prompt_contenido = (
             f"Eres un experto en fútbol. Basándote en tus conocimientos históricos reales del partido '{partido_nombre}', "
             f"crea exactamente 12 preguntas de trivia variadas y desafiantes. "
-            f"Incluye detalles sobre goleadores, sustituciones clave, estadísticas del partido o contexto. "
-            f"IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas de la realidad de ese partido. "
+            f"Incluye detalles sobre goles, sustituciones, estadísticas o hitos. "
+            f"IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas de la realidad histórica de ese juego. "
             f"Formato de salida SOLO JSON sin texto adicional ni backticks: "
             f"{{\"preguntas\": [{{\"\pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}}]}}"
         )
-    # Caso B: Sí tenemos los datos estructurados en las tablas relacionales de Supabase
     else:
         prompt_contenido = (
             f"Crea exactamente 12 preguntas de trivia basándote estrictamente en estos jugadores y partido real de la base de datos: "
@@ -229,4 +219,4 @@ async def obtener_trivias(partido_nombre: str = None):
         texto = raw_text.replace("```json", "").replace("```", "").strip()
         return json.loads(texto)
     except Exception as e:
-        return {"error": f"Error procesando la respuesta o estructura JSON de OpenAI: {str(e)}"}
+        return {"error": f"No se pudo estructurar la trivia debido a un fallo con OpenAI: {str(e)}"}
