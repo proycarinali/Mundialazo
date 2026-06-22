@@ -570,7 +570,9 @@ async function iniciarTrivia() {
     document.getElementById('loading-msg').textContent = `Generando trivia para: ${partidoLabel}...`;
 
     // 2. Construimos la URL con Query Parameters dinámicos
-    let urlEndpoint = `/api/trivias?nombre_partido=${encodeURIComponent(partidLabel)}`;
+    const urlEndpoint = `/api/trivias?partido_nombre=${encodeURIComponent(partidoLabel)}`;
+    const res = await fetch(urlEndpoint);
+    
     if (partidoId) {
         urlEndpoint += `&partido_id=${encodeURIComponent(partidId)}`;
     }
