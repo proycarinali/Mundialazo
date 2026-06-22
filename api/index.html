@@ -649,7 +649,42 @@ function avanzarPregunta() {
         cambiarPantalla('scr-results');
     }
 }
+async function iniciarTrivia() {
+    cambiarPantalla('scr-loading');
+    puntos         = 0;
+    indicePregunta = 0;
+    document.getElementById('local-score').textContent = '0 pts';
 
+    // Obtenemos el nombre exacto del partido seleccionado (ej: "Real Madrid 2 - 1 FC Barcelona")
+    const nombrePartido = partidoSeleccionado ? partidoSeleccionado.label : '';
+    document.getElementById('loading-msg').textContent = `Generando trivia con IA para: ${nombrePartido}...`;
+
+    // Adjuntamos el nombre del partido seleccionado como parámetro en la URL
+    const urlEndpoint = `/api/trivias?partido_nombre=${encodeURIComponent(nombrePartido)}`;
+
+    try {
+        const res = await fetch(urlEndpoint);
+        if (!res.ok) throw new Error('Error de conexión con el servidor.');
+        
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+        
+        if (datos.preguntas && datos.preguntas.length > 0) {
+            preguntasPartida = datos.preguntas;
+            // Todo salió bien, iniciamos el juego
+            cambiarPantalla('scr-quiz');
+            renderizarPregunta();
+        } else {
+            throw new Error('El servidor no devolvió preguntas válidas para este partido.');
+        }
+
+    } catch (err) {
+        console.error('Error al armar la trivia:', err);
+        // En vez de usar la trivia de Qatar por defecto, mostramos el error en pantalla
+        alert(`No se pudo armar la trivia para este partido.\nMotivo: ${err.message}`);
+        volverAlMenu();
+    }
+}
 /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
    INIT
 &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
