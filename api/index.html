@@ -563,27 +563,35 @@ async function iniciarTrivia() {
     indicePregunta = 0;
     document.getElementById('local-score').textContent = '0 pts';
 
-    const endpoint = ligaSeleccionada ? ligaSeleccionada.endpoint : '/api/trivias';
-    document.getElementById('loading-msg').textContent =
-        `Generando trivia para: ${partidoSeleccionado ? partidoSeleccionado.label : ''}...`;
+    // 1. Validamos qué partido seleccionó el usuario
+    const partidoLabel = partidoSeleccionado ? partidoSeleccionado.label : '';
+    const partidoId = partidoSeleccionado ? (partidoSeleccionado.id || '') : '';
+    
+    document.getElementById('loading-msg').textContent = `Generando trivia para: ${partidoLabel}...`;
+
+    // 2. Construimos la URL con Query Parameters dinámicos
+    let urlEndpoint = `/api/trivias?nombre_partido=${encodeURIComponent(partidLabel)}`;
+    if (partidoId) {
+        urlEndpoint += `&partido_id=${encodeURIComponent(partidId)}`;
+    }
 
     try {
-        const res = await fetch(endpoint);
+        const res = await fetch(urlEndpoint);
         if (!res.ok) throw new Error('Error de servidor');
         const datos = await res.json();
         if (datos.error) throw new Error(datos.error);
+        
         preguntasPartida = (datos.preguntas && datos.preguntas.length > 0)
             ? datos.preguntas
             : BANCO_NATIVO;
     } catch (err) {
-        console.warn('Backend no disponible, usando banco local.', err);
+        console.warn('Backend no disponible o error en respuesta, usando banco local.', err);
         preguntasPartida = BANCO_NATIVO;
     }
 
     cambiarPantalla('scr-quiz');
     renderizarPregunta();
 }
-
 /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
    QUIZ
 &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
