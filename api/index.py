@@ -91,70 +91,62 @@ def supabase_get(tabla: str, params: dict) -> list:
 
 
 def obtener_datos_partido_por_nombre(nombre_partido: str = None):
+    """Busca el partido y sus jugadores/eventos usando psycopg2 directo."""
     resultado = {"detalles": {"partido": "Buscando partido reciente..."}, "jugadores": []}
 
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        resultado["error"] = "Variables SUPABASE_URL o SUPABASE_KEY no configuradas"
-        return resultado
-
     try:
-        if nombre_partido:
-            # Clean structural symbols and separate tokens safely
-            palabras = [p for p in nombre_partido.replace("-", " ").replace("(", " ").replace(")", " ").split(" ") if p.isalpha() and p.lower() not in ("vs", "v", "pen")]
+        conn = get_pg_connection()
+        with conn.cursor() as cur:
 
-            # CRITICAL FIX: Explicitly enforce string formatting instead of leaking list references to Supabase
-            nombre_limpio = str(nombre_partido)
-            if palabras:
-                filtradas = [w for w in palabras if w.lower() not in ("del", "real", "atlético", "manchester", "city", "united")]
-                # Extract the first available real match-term string token safely
-                nombre_limpio = str(filtradas[0]) if filtradas else str(palabras[0])
+            if nombre_partido:
+                # Extraer tokens de búsqueda descartando palabras estructurales
+                palabras = [
+                    p for p in nombre_partido.replace("-", " ").replace("(", " ").replace(")", " ").split()
+                    if p.isalpha() and p.lower() not in ("vs", "v", "pen")
+                ]
+                filtradas = [w for w in palabras if w.lower() not in ("del", "real", "atletico", "manchester", "city", "united")]
+                termino = filtradas[0] if filtradas else (palabras[0] if palabras else nombre_partido)
 
-            partidos = supabase_get("partidos", {
-                "equipo_local_nombre": f"ilike.*{nombre_limpio}*",
-                "limit": 1,
-                "select": "*",
-            })
+                cur.execute(
+                    """
+                    SELECT * FROM partidos
+                    WHERE equipo_local_nombre    ILIKE %s
+                       OR equipo_visitante_nombre ILIKE %s
+                    ORDER BY fecha_partido DESC
+                    LIMIT 1
+                    """,
+                    (f"%{termino}%", f"%{termino}%"),
+                )
+            else:
+                cur.execute("SELECT * FROM partidos ORDER BY fecha_partido DESC LIMIT 1")
 
-            if not partidos:
-                partidos = supabase_get("partidos", {
-                    "equipo_visitante_nombre": f"ilike.*{nombre_limpio}*",
-                    "limit": 1,
-                    "select": "*",
-                })
-        else:
-            partidos = supabase_get("partidos", {
-                "order": "fecha_partido.desc",
-                "limit": 1,
-                "select": "*",
-            })
+            partido = cur.fetchone()
 
-        if not partidos:
-            resultado["detalles"]["partido"] = "No se encontraron partidos coincidentes en la Base de Datos"
-            return resultado
+            if not partido:
+                resultado["detalles"]["partido"] = "No se encontraron partidos coincidentes en la Base de Datos"
+                conn.close()
+                return resultado
 
-        # Explicit list element index extraction
-        partido = partidos[0] if isinstance(partidos, list) else partidos
-        id_partido = partido["id_partido"]
+            id_partido = partido["id_partido"]
+            resultado["detalles"]["id_partido"] = id_partido
+            resultado["detalles"]["partido"] = (
+                f"{partido['equipo_local_nombre']} {partido['equipo_local_goles']} "
+                f"- {partido['equipo_visitante_goles']} {partido['equipo_visitante_nombre']}"
+            )
+            resultado["detalles"]["liga"]         = partido.get("liga_nombre", "N/A")
+            resultado["detalles"]["fecha"]        = str(partido.get("fecha_partido", "N/A"))
+            resultado["detalles"]["ganador"]      = partido.get("ganador", "N/A")
+            resultado["detalles"]["tanda_penales"] = partido.get("tanda_penales", False)
 
-        resultado["detalles"]["id_partido"] = id_partido
-        resultado["detalles"]["partido"] = (
-            f"{partido['equipo_local_nombre']} {partido['equipo_local_goles']} "
-            f"- {partido['equipo_visitante_goles']} {partido['equipo_visitante_nombre']}"
-        )
-        resultado["detalles"]["liga"] = partido.get("liga_nombre", "N/A")
-        resultado["detalles"]["fecha"] = str(partido.get("fecha_partido", "N/A"))
-        resultado["detalles"]["ganador"] = partido.get("ganador", "N/A")
-        resultado["detalles"]["tanda_penales"] = partido.get("tanda_penales", False)
+            # Jugadores
+            cur.execute("SELECT * FROM jugadores_partido WHERE id_partido = %s", (id_partido,))
+            jugadores_rows = cur.fetchall()
 
-        jugadores_rows = supabase_get("jugadores_partido", {
-            "id_partido": f"eq.{id_partido}",
-            "select": "*",
-        })
+            # Eventos para calcular stats
+            cur.execute("SELECT * FROM eventos_partido WHERE id_partido = %s", (id_partido,))
+            eventos_rows = cur.fetchall()
 
-        eventos_rows = supabase_get("eventos_partido", {
-            "id_partido": f"eq.{id_partido}",
-            "select": "*",
-        })
+        conn.close()
 
         stats = {}
         for ev in eventos_rows:
@@ -184,14 +176,14 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
             jid = jug.get("id_jugador", "")
             s = stats.get(jid, {})
             resultado["jugadores"].append({
-                "nombre": jug.get("nombre_jugador", "N/A"),
-                "posicion": jug.get("posicion", "N/A"),
-                "titular": jug.get("titular", True),
-                "equipo_id": jug.get("id_equipo", "N/A"),
-                "goles": s.get("goles", 0),
-                "asistencias": s.get("asistencias", 0),
+                "nombre":            jug.get("nombre_jugador", "N/A"),
+                "posicion":          jug.get("posicion", "N/A"),
+                "titular":           jug.get("titular", True),
+                "equipo_id":         jug.get("id_equipo", "N/A"),
+                "goles":             s.get("goles", 0),
+                "asistencias":       s.get("asistencias", 0),
                 "tarjetas_amarillas": s.get("tarjetas_amarillas", 0),
-                "tarjetas_rojas": s.get("tarjetas_rojas", 0)
+                "tarjetas_rojas":    s.get("tarjetas_rojas", 0),
             })
 
     except Exception as e:
@@ -348,23 +340,37 @@ async def listar_partidos(liga_nombre: str = None, limit: int = 3):
     Devuelve los últimos partidos de la BD, opcionalmente filtrados por liga.
     El frontend lo usa para poblar la pantalla de selección de partido.
     """
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        return {"error": "Variables SUPABASE_URL o SUPABASE_KEY no configuradas"}
     try:
-        params = {"order": "fecha_partido.desc", "limit": limit, "select": "*"}
-        if liga_nombre:
-            params["liga_nombre"] = f"ilike.*{liga_nombre}*"
-        partidos = supabase_get("partidos", params)
+        conn = get_pg_connection()
+        with conn.cursor() as cur:
+            if liga_nombre:
+                cur.execute(
+                    """
+                    SELECT * FROM partidos
+                    WHERE liga_nombre ILIKE %s
+                    ORDER BY fecha_partido DESC
+                    LIMIT %s
+                    """,
+                    (f"%{liga_nombre}%", limit),
+                )
+            else:
+                cur.execute(
+                    "SELECT * FROM partidos ORDER BY fecha_partido DESC LIMIT %s",
+                    (limit,),
+                )
+            rows = cur.fetchall()
+        conn.close()
+
         resultado = []
-        for p in partidos:
+        for p in rows:
             resultado.append({
-                "id_partido":  p.get("id_partido"),
+                "id_partido": p.get("id_partido"),
                 "label": (
                     f"{p['equipo_local_nombre']} {p['equipo_local_goles']} "
                     f"- {p['equipo_visitante_goles']} {p['equipo_visitante_nombre']}"
                 ),
-                "fecha": str(p.get("fecha_partido", "")),
-                "liga":  p.get("liga_nombre", ""),
+                "fecha":   str(p.get("fecha_partido", "")),
+                "liga":    p.get("liga_nombre", ""),
                 "ganador": p.get("ganador", ""),
             })
         return {"partidos": resultado}
