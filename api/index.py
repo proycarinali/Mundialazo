@@ -35,12 +35,9 @@ DB_PORT = "6543"
 
 def get_pg_connection():
     return psycopg2.connect(
-        host=DB_HOST,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASS,
-        port=DB_PORT,
-        cursor_factory=psycopg2.extras.RealDictCursor,
+        host=DB_HOST, database=DB_NAME,
+        user=DB_USER, password=DB_PASS, port=DB_PORT,
+        connect_timeout=10 
     )
 
 
