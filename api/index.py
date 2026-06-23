@@ -20,7 +20,6 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-# CORRECCIÓN DE LA URL: Si la URL no empieza con http:// o https://, se lo agregamos automáticamente
 if SUPABASE_URL and not SUPABASE_URL.startswith(("http://", "https://")):
     SUPABASE_URL = f"https://{SUPABASE_URL}"
 
@@ -50,6 +49,7 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
 
     try:
         if nombre_partido:
+            # CORRECCIÓN: Evitamos que devuelva una lista si detecta espacios. Extraemos la primera palabra string.
             nombre_limpio = nombre_partido.split(" ")[0] if " " in nombre_partido else nombre_partido
             
             partidos = supabase_get("partidos", {
@@ -75,8 +75,10 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
             resultado["detalles"]["partido"] = "No se encontraron partidos coincidentes en la Base de Datos"
             return resultado
 
+        # CORRECCIÓN DE VARIABLES: Eliminados los guiones bajos del objeto 'partido'
         partido = partidos[0]
         id_partido = partido["id_partido"]
+        
         resultado["detalles"]["partido"] = (
             f"{partido['equipo_local_nombre']} {partido['equipo_local_goles']} "
             f"- {partido['equipo_visitante_goles']} {partido['equipo_visitante_nombre']}"
