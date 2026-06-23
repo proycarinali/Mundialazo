@@ -414,30 +414,25 @@ async function seleccionarLiga(liga) {
 
     let partidos = [];
     try {
-        // Intenta cargar los &#250;ltimos partidos desde el backend
-        // El endpoint /api/trivias no devuelve partidos directamente,
-        // usamos /api/test que expone datos_futbol con detalles del partido
-        const res = await fetch('/api/test');
+        // Carga partidos reales de la BD filtrados por liga
+        const res = await fetch(`/api/partidos?liga_nombre=${encodeURIComponent(liga.nombre)}&limit=3`);
         if (!res.ok) throw new Error('No se pudo conectar');
         const datos = await res.json();
 
-        // El backend devuelve un &#250;nico partido en datos_futbol.detalles
-        // Construimos hasta 3 partidos si el backend los tiene
-        const df = datos.datos_futbol;
-        if (df && df.detalles && df.detalles.partido && df.detalles.partido !== 'Buscando partido reciente...') {
-            partidos.push({
-                label:   df.detalles.partido,
-                fecha:   df.detalles.fecha   || '',
-                liga:    df.detalles.liga    || liga.nombre,
-                ganador: df.detalles.ganador || '',
+        if (datos.partidos && datos.partidos.length > 0) {
+            partidos = datos.partidos.map(p => ({
+                label:   p.label,
+                fecha:   p.fecha   || '',
+                liga:    p.liga    || liga.nombre,
+                ganador: p.ganador || '',
                 source:  'api',
-            });
+            }));
         }
     } catch (e) {
         console.warn('No se pudo conectar al backend:', e);
     }
 
-    // Si no hay partidos del backend, mostramos fallbacks est&#225;ticos por liga
+    // Si no hay partidos de la BD, mostramos fallbacks estáticos por liga
     if (partidos.length === 0) {
         partidos = getPartidosFallback(liga.id);
     }
