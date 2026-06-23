@@ -27,12 +27,11 @@ if SUPABASE_URL and not SUPABASE_URL.startswith(("http://", "https://")):
     SUPABASE_URL = f"https://{SUPABASE_URL}"
 
 # --- PostgreSQL direct connection (DB_* variables) ---
-DB_HOST = os.environ.get("DB_HOST", "aws-1-us-east-2.pooler.supabase.com")
-DB_NAME = os.environ.get("DB_NAME", "postgres")
-DB_USER = os.environ.get("DB_USER", "")
-DB_PASS = os.environ.get("DB_PASS", "")
-DB_PORT = os.environ.get("DB_PORT", "5432")
-
+DB_HOST = "aws-1-us-east-2.pooler.supabase.com"
+DB_NAME = "postgres"
+DB_USER = "postgres.vlndghikrjvxmiibbqbo"
+DB_PASS = "Lif#Cari.Fuk"
+DB_PORT = "6543"
 
 def get_pg_connection():
     return psycopg2.connect(
