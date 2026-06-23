@@ -20,7 +20,7 @@ OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
-# Si la URL no empieza con http:// o https://, se lo agregamos automáticamente
+# Automatically enforce https protocol schema if missing
 if SUPABASE_URL and not SUPABASE_URL.startswith(("http://", "https://")):
     SUPABASE_URL = f"https://{SUPABASE_URL}"
 
@@ -50,15 +50,15 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
 
     try:
         if nombre_partido:
-            # Limpiamos caracteres y separamos palabras
+            # Clean structural symbols and separate tokens safely
             palabras = [p for p in nombre_partido.replace("-", " ").replace("(", " ").replace(")", " ").split(" ") if p.isalpha() and p.lower() not in ("vs", "v", "pen")]
             
-            # CORRECCIÓN DE TIPADO: Nos aseguramos de extraer un String limpio en lugar de una lista
-            nombre_limpio = nombre_partido
+            # CRITICAL FIX: Explicitly enforce string formatting instead of leaking list references to Supabase
+            nombre_limpio = str(nombre_partido)
             if palabras:
-                # Si la primera palabra es un prefijo común, buscamos palabras más específicas
                 filtradas = [w for w in palabras if w.lower() not in ("del", "real", "atlético", "manchester", "city", "united")]
-                nombre_limpio = filtradas[0] if filtradas else palabras[0]
+                # Extract the first available real match-term string token safely
+                nombre_limpio = str(filtradas[0]) if filtradas else str(palabras[0])
             
             partidos = supabase_get("partidos", {
                 "equipo_local_nombre": f"ilike.*{nombre_limpio}*",
@@ -83,7 +83,7 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
             resultado["detalles"]["partido"] = "No se encontraron partidos coincidentes en la Base de Datos"
             return resultado
 
-        # Extraemos el primer registro devuelto por Supabase
+        # Explicit list element index extraction
         partido = partidos[0] if isinstance(partidos, list) else partidos
         id_partido = partido["id_partido"]
         
@@ -174,7 +174,7 @@ async def probar_apis(partido_nombre: str = None):
                 model="gpt-4o-mini",
                 messages=[{"role": "user", "content": "Hola"}]
             )
-            openai_res = {"status": 200, "body": response.choices[0].message.content}
+            openai_res = {"status": 200, "body": response.choices.message.content}
         except Exception as e:
             openai_res = {"error": str(e)}
 
@@ -215,7 +215,7 @@ async def obtener_trivias(partido_nombre: str = None):
         )
 
     try:
-        # Forzamos la salida JSON limpia directamente desde la API oficial de OpenAI
+        # Strict native JSON enforcement parameters activated
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
             response_format={"type": "json_object"},
