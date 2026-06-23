@@ -39,7 +39,7 @@ def get_pg_connection():
         dbname=DB_NAME,
         user=DB_USER,
         password=DB_PASS,
-        port=int(DB_PORT) if DB_PORT else 5432,
+        port=DB_PORT,
         cursor_factory=psycopg2.extras.RealDictCursor,
     )
 
