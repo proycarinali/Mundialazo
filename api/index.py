@@ -50,13 +50,15 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
 
     try:
         if nombre_partido:
-            # Eliminamos números, guiones y espacios extras para quedarnos con los nombres limpios
-            palabras = [p for p in nombre_partido.replace("-", " ").split(" ") if p.isalpha() and p.lower() not in ("vs", "v")]
+            # Limpiamos caracteres y separamos palabras
+            palabras = [p for p in nombre_partido.replace("-", " ").replace("(", " ").replace(")", " ").split(" ") if p.isalpha() and p.lower() not in ("vs", "v", "pen")]
             
-            # Tomamos una palabra representativa para buscar. Si la primera es genérica, tomamos la segunda.
-            nombre_limpio = palabras[0] if palabras else nombre_partido
-            if nombre_limpio.lower() in ("del", "real", "atlético", "manchester") and len(palabras) > 1:
-                nombre_limpio = palabras[1] if palabras[1].lower() not in ("city", "united") else palabras[0]
+            # CORRECCIÓN DE TIPADO: Nos aseguramos de extraer un String limpio en lugar de una lista
+            nombre_limpio = nombre_partido
+            if palabras:
+                # Si la primera palabra es un prefijo común, buscamos palabras más específicas
+                filtradas = [w for w in palabras if w.lower() not in ("del", "real", "atlético", "manchester", "city", "united")]
+                nombre_limpio = filtradas[0] if filtradas else palabras[0]
             
             partidos = supabase_get("partidos", {
                 "equipo_local_nombre": f"ilike.*{nombre_limpio}*",
@@ -81,8 +83,8 @@ def obtener_datos_partido_por_nombre(nombre_partido: str = None):
             resultado["detalles"]["partido"] = "No se encontraron partidos coincidentes en la Base de Datos"
             return resultado
 
-        # CORRECCIÓN DE VARIABLE FANTASMA: Se cambiaron los '_partido' incorrectos por 'partido'
-        partido = partidos[0]
+        # Extraemos el primer registro devuelto por Supabase
+        partido = partidos[0] if isinstance(partidos, list) else partidos
         id_partido = partido["id_partido"]
         
         resultado["detalles"]["partido"] = (
@@ -200,7 +202,7 @@ async def obtener_trivias(partido_nombre: str = None):
             f"crea exactamente 12 preguntas de trivia variadas y desafiantes. "
             f"Incluye detalles sobre goleadores, sustituciones clave, estadísticas del partido o contexto. "
             f"IMPORTANTE: todas las respuestas correctas deben ser 100% verídicas de la realidad de ese partido. "
-            f"Formato de salida SOLO JSON sin texto adicional ni backticks: "
+            f"Formato de salida: Devuelve un objeto JSON estructurado exactamente con este formato: "
             f"{{\"preguntas\": [{{\"\pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}}]}}"
         )
     else:
@@ -208,18 +210,18 @@ async def obtener_trivias(partido_nombre: str = None):
             f"Crea exactamente 12 preguntas de trivia basándote estrictamente en estos jugadores y partido real de la base de datos: "
             f"Partido: {datos['detalles']}. "
             f"Jugadores y estadísticas: {json.dumps(info_jugadores, ensure_ascii=False)}. "
-            f"Formato de salida SOLO JSON sin texto adicional ni backticks: "
+            f"Formato de salida: Devuelve un objeto JSON estructurado exactamente con este formato: "
             f"{{\"preguntas\": [{{\"\pregunta\": \"...\", \"opciones\": [\"A\",\"B\",\"C\"], \"correcta\": \"...\"}}]}}"
         )
 
     try:
+        # Forzamos la salida JSON limpia directamente desde la API oficial de OpenAI
         response = openai_client.chat.completions.create(
             model="gpt-4o-mini",
+            response_format={"type": "json_object"},
             messages=[{"role": "user", "content": prompt_contenido}],
             max_tokens=2500
         )
-        raw_text = response.choices[0].message.content
-        texto = raw_text.replace("```json", "").replace("```", "").strip()
-        return json.loads(texto)
+        return json.loads(response.choices.message.content)
     except Exception as e:
         return {"error": f"Error procesando la respuesta o estructura JSON de OpenAI: {str(e)}"}
