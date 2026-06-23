@@ -1,3 +1,4 @@
+-Crea una tabla de trivias por pregutas y respuestas con tres posibilidades para liga/partido
 - fijate que a la base de datos se conecte a traves
 de estás cuatro variables
 
@@ -10,8 +11,11 @@ DB_PORT = ""
 - Arma y que tome los datos de está estructura de tablas y se la pase a openai 
 para pedir las 10 preguntas que la llame con la info general del partido y la
 info de los eventos al menos con info de 10 eventos para cada partido  y el jugador
-involucrado
+involucrado, debe almacenarlo en la tabla de trivias
 
 -Armame una tabla para guardar la trivia por partido/liga y guarda las preguntas
 
--Arma un end point para tomar las preguntas de la trivia  por partido y liga
+-Arma un end point para tomar las preguntas de la trivia  por partido y liga de la base de datos
+
+
+Agregale solo los cambios que te pedi y no toques mas nada
