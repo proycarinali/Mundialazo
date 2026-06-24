@@ -479,6 +479,7 @@ async function seleccionarLiga(liga) {
 
         if (datos.partidos && datos.partidos.length > 0) {
             partidos = datos.partidos.map(p => ({
+                id_partido: p.id_partido,
                 label:   p.label,
                 fecha:   p.fecha   || '',
                 liga:    p.liga    || liga.nombre,
