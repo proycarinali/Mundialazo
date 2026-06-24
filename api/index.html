@@ -616,38 +616,45 @@ async function iniciarTrivia() {
     indicePregunta = 0;
     document.getElementById('local-score').textContent = '0 pts';
 
-    // CORRECCIÓN: Le pasamos al endpoint el nombre exacto del partido seleccionado
-    let endpoint = '/api/trivias';
-    if (partidoSeleccionado && partidoSeleccionado.label) {
-        endpoint += `?partido_nombre=${encodeURIComponent(partidoSeleccionado.label)}`;
+    const idPartido = partidoSeleccionado ? partidoSeleccionado.id_partido : '';
+    const labelPartido = partidoSeleccionado ? partidoSeleccionado.label : '';
+    document.getElementById('loading-msg').textContent = `Generando trivia para: ${labelPartido}...`;
+
+    // Si viene de fallback local sin ID real, usamos el banco nativo directamente
+    if (!idPartido || partidoSeleccionado.source === 'local') {
+        console.warn('Usando banco local por falta de ID o partido estático.');
+        preguntasPartida = BANCO_NATIVO;
+        setTimeout(() => {
+            cambiarPantalla('scr-quiz');
+            renderizarPregunta();
+        }, 800);
+        return;
     }
 
-    document.getElementById('loading-msg').textContent =
-        `Generando trivia para: ${partidoSeleccionado ? partidoSeleccionado.label : ''}...`;
+    const urlEndpoint = `/api/trivias?id_partido=${encodeURIComponent(idPartido)}`;
 
     try {
-        const res = await fetch(endpoint);
-        if (!res.ok) throw new Error('Error de servidor');
+        const res = await fetch(urlEndpoint);
+        if (!res.ok) throw new Error(`Error de servidor (${res.status})`);
+        
         const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
         
-        // Si el backend nos responde con un error estructurado, lanzamos un alert con el motivo real
-        if (datos.error) {
-            alert("No se pudo armar la trivia para este partido.\nMotivo: " + datos.error);
-            volverAlMenu();
-            return;
+        if (datos.preguntas && datos.preguntas.length > 0) {
+            preguntasPartida = datos.preguntas;
+            cambiarPantalla('scr-quiz');
+            renderizarPregunta();
+        } else {
+            throw new Error('El servidor no devolvió preguntas válidas para este partido.');
         }
-        
-        preguntasPartida = (datos.preguntas && datos.preguntas.length > 0)
-            ? datos.preguntas
-            : BANCO_NATIVO;
-    } catch (err) {
-        console.warn('Backend no disponible, usando banco local.', err);
-        preguntasPartida = BANCO_NATIVO;
-    }
 
-    cambiarPantalla('scr-quiz');
-    renderizarPregunta();
+    } catch (err) {
+        console.error('Error al armar la trivia:', err);
+        alert(`No se pudo armar la trivia para este partido.\nMotivo: ${err.message}`);
+        volverAlMenu();
+    }
 }
+   
 /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
    QUIZ
 &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
