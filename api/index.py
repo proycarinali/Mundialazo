@@ -90,6 +90,8 @@ def get_ligas_disponibles(conn):
     cursor.execute("""
         SELECT liga_nombre, COUNT(*) as total
         FROM partidos
+        inner join preguntas_partido pp
+        on pp.id_partido=p.id_partido
         WHERE liga_nombre IS NOT NULL
         GROUP BY liga_nombre
         ORDER BY total DESC;
@@ -145,7 +147,7 @@ def get_id_partido_por_nombre(partido_nombre, conn):
     # Intentamos extraer los equipos del label "Local G - G Visitante"
     # La estrategia más robusta: buscar por nombre de equipos en el label
     cursor.execute("""
-        SELECT id_partido,
+        SELECT distinct id_partido,
                equipo_local_nombre || ' ' || equipo_local_goles || ' - ' ||
                equipo_visitante_goles || ' ' || equipo_visitante_nombre AS label
         FROM partidos
