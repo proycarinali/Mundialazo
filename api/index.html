@@ -236,7 +236,7 @@
             animation: spin 0.9s linear infinite;
             margin: 24px auto;
         }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @animations spin { to { transform: rotate(360deg); } }
 
         /* --- RESULTS --- */
         .result-score {
@@ -255,9 +255,6 @@
 <body>
 <div class="container">
 
-    <!-- &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;
-         PANTALLA 1 &#8212; Men&#250; de ligas
-    &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552; -->
     <div id="scr-menu" class="screen active">
         <h1>&#9917; Golazo IA</h1>
         <p>Trivia de f&#250;tbol en tiempo real con estad&#237;sticas reales. Eleg&#237; una liga para empezar.</p>
@@ -265,9 +262,6 @@
         <div class="leagues-grid" id="leagues-grid"></div>
     </div>
 
-    <!-- &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;
-         PANTALLA 2 &#8212; Partidos de la liga
-    &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552; -->
     <div id="scr-partidos" class="screen">
         <div class="nav-back" onclick="volverAlMenu()">
             <span>&#8592;</span> Todas las ligas
@@ -283,18 +277,12 @@
         <button class="btn-secondary" onclick="volverAlMenu()">&#8592; Cambiar liga</button>
     </div>
 
-    <!-- &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;
-         PANTALLA 3 &#8212; Cargando trivia
-    &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552; -->
     <div id="scr-loading" class="screen">
         <h1>Generando Trivia...</h1>
         <div class="loader"></div>
         <p id="loading-msg">Consultando estad&#237;sticas y generando preguntas con IA...</p>
     </div>
 
-    <!-- &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;
-         PANTALLA 4 &#8212; Quiz
-    &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552; -->
     <div id="scr-quiz" class="screen">
         <div class="scoreboard">
             <span id="quiz-progress">Pregunta: 0/0</span>
@@ -303,17 +291,15 @@
         <h3 id="box-pregunta" style="text-align:left;line-height:1.5;">Cargando...</h3>
         <div id="container-options" class="options-container"></div>
         <div id="box-feedback" class="feedback"></div>
-        <button id="btn-next-action" class="btn" style="display:none;" onclick="avanzarPregunta()">Siguiente &#10145;&#65039;</button>
+        <button id="btn-next-action" class="btn" style="display:none;" onclick="avanzarPregunta()">Siguiente ➡️</button>
     </div>
 
-    <!-- &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;
-         PANTALLA 5 &#8212; Resultados
-    &#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552;&#9552; -->
     <div id="scr-results" class="screen">
         <h1>&#127942; &#161;Trivia completada!</h1>
         <p class="result-league" id="result-liga"></p>
         <p>Tu puntuaci&#243;n final:</p>
         <div class="result-score" id="box-final-score">0 pts</div>
+        <div id="box-totales-jugada" style="margin-bottom: 20px; padding: 10px; background: var(--option-bg); border-radius: 8px;"></div>
         <button class="btn" onclick="volverAlMenu()">Jugar otra vez &#128260;</button>
         <button class="btn-secondary" onclick="cambiarPantalla('scr-partidos')">Otro partido de la misma liga</button>
     </div>
@@ -321,12 +307,11 @@
 </div>
 
 <script>
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
-   LIGAS &#8212; se cargan din&#225;micamente desde /api/ligas
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+/* ──────────────────────────────────────────
+   LIGAS — se cargan dinámicamente desde /api/ligas
+────────────────────────────────────────── */
 let LIGAS = [];
 
-// Mapeo palabras clave &#8594; flag y pa&#237;s
 const LIGA_META = [
     { keys: ["premier league", "epl"],            flag: "&#127988;&#65039;",       pais: "Inglaterra"     },
     { keys: ["la liga", "laliga"],                flag: "&#127466;&#127480;",       pais: "Espa&#241;a"        },
@@ -396,9 +381,9 @@ async function cargarLigas() {
     renderMenuLigas();
 }
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+/* ──────────────────────────────────────────
    BANCO LOCAL DE EMERGENCIA
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+────────────────────────────────────────── */
 const BANCO_NATIVO = [
     {"pregunta":"&#191;Qu&#233; resultado tuvo la Final del Mundial Qatar 2022 al final del tiempo reglamentario?","opciones":["Argentina 2-2 Francia","Argentina 3-3 Francia","Argentina 2-0 Francia"],"correcta":"Argentina 3-3 Francia"},
     {"pregunta":"&#191;Cu&#225;ntos goles marc&#243; Kylian Mbapp&#233; en la Final de Qatar 2022?","opciones":["1","2","3"],"correcta":"3"},
@@ -414,9 +399,9 @@ const BANCO_NATIVO = [
     {"pregunta":"&#191;Qu&#233; r&#233;cord personal alcanz&#243; Messi al ganar Qatar 2022?","opciones":["Su primer Bal&#243;n de Oro","Su primera Copa del Mundo","Su primer gol mundialista"],"correcta":"Su primera Copa del Mundo"},
 ];
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+/* ──────────────────────────────────────────
    ESTADO GLOBAL
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+────────────────────────────────────────── */
 let ligaSeleccionada  = null;
 let partidoSeleccionado = null;
 let preguntasPartida  = [];
@@ -424,9 +409,13 @@ let indicePregunta    = 0;
 let puntos            = 0;
 let preguntaActualObj = null;
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
-   NAVEGACI&#211;N
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+// AGREGADOS: CONTADORES GLOBALES DE LA JUGADA
+let contadorOK        = 0;
+let contadorError     = 0;
+
+/* ──────────────────────────────────────────
+   NAVEGACIÓN
+────────────────────────────────────────── */
 function cambiarPantalla(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
@@ -438,9 +427,9 @@ function volverAlMenu() {
     cambiarPantalla('scr-menu');
 }
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
-   RENDER DEL MEN&#218; DE LIGAS
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+/* ──────────────────────────────────────────
+   RENDER DEL MENÚ DE LIGAS
+────────────────────────────────────────── */
 function renderMenuLigas() {
     const grid = document.getElementById('leagues-grid');
     grid.innerHTML = '';
@@ -457,9 +446,9 @@ function renderMenuLigas() {
     });
 }
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
-   SELECCI&#211;N DE LIGA &#8594; carga &#250;ltimos partidos
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+/* ──────────────────────────────────────────
+   SELECCIÓN DE LIGA → carga últimos partidos
+────────────────────────────────────────── */
 async function seleccionarLiga(liga) {
     ligaSeleccionada = liga;
 
@@ -472,7 +461,6 @@ async function seleccionarLiga(liga) {
 
     let partidos = [];
     try {
-        // Carga partidos reales de la BD filtrados por liga
         const res = await fetch(`/api/partidos?liga_nombre=${encodeURIComponent(liga.nombre)}&limit=3`);
         if (!res.ok) throw new Error('No se pudo conectar');
         const datos = await res.json();
@@ -491,7 +479,6 @@ async function seleccionarLiga(liga) {
         console.warn('No se pudo conectar al backend:', e);
     }
 
-    // Si no hay partidos de la BD, mostramos fallbacks estáticos por liga
     if (partidos.length === 0) {
         partidos = getPartidosFallback(liga.id);
     }
@@ -499,9 +486,9 @@ async function seleccionarLiga(liga) {
     renderPartidos(partidos);
 }
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
-   PARTIDOS EST&#193;TICOS DE FALLBACK POR LIGA
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+/* ──────────────────────────────────────────
+   PARTIDOS ESTÁTICOS DE FALLBACK POR LIGA
+────────────────────────────────────────── */
 function getPartidosFallback(ligaId) {
     const fallbacks = {
         mundial:    [
@@ -550,16 +537,14 @@ function getPartidosFallback(ligaId) {
     ];
 }
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+/* ──────────────────────────────────────────
    RENDER DE PARTIDOS EN LA PANTALLA 2
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+────────────────────────────────────────── */
 function renderPartidos(partidos) {
     const grid = document.getElementById('matches-grid');
     grid.innerHTML = '';
 
-    // Muestra m&#225;ximo 3 partidos
     partidos.slice(0, 3).forEach((p, i) => {
-        // Intenta separar equipos y marcador del label "A X - Y B"
         const partes = parsearPartido(p.label);
 
         const card = document.createElement('div');
@@ -577,11 +562,9 @@ function renderPartidos(partidos) {
 }
 
 function parsearPartido(label) {
-    // Formato esperado: "Equipo A N - M Equipo B" o "Equipo A N - M Equipo B (X-Y pen)"
     const rx = /^(.+?)\s+(\d[\d&#8211;\-\s]*\d)\s+(.+?)(\s+\(.+\))?$/;
     const m  = label.match(rx);
     if (m) {
-        // Intenta encontrar el score en el medio
         const scoreRx = /(\d+)\s*[-&#8211;]\s*(\d+)/;
         const sm = label.match(scoreRx);
         if (sm) {
@@ -597,9 +580,9 @@ function parsearPartido(label) {
     return { local: label, visitante: '', score: 'vs' };
 }
 
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
-   SELECCI&#211;N DE PARTIDO &#8594; inicia trivia
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+/* ──────────────────────────────────────────
+   SELECCIÓN DE PARTIDO → inicia trivia
+────────────────────────────────────────── */
 function seleccionarPartido(partido, cardEl) {
     document.querySelectorAll('.match-card').forEach(c => c.classList.remove('active'));
     cardEl.classList.add('active');
@@ -628,32 +611,63 @@ function renderizarPregunta() {
     });
 }
 
+/* MODIFICADO: VALIDA SI ESTÁ OK O NO Y COLOREA (VERDE O ROJO) + CONTABILIZA TOTALES */
 function verificarRespuesta(opcion) {
-    document.querySelectorAll('.btn-option').forEach(b => b.disabled = true);
+    const todosLosBotones = document.querySelectorAll('.btn-option');
+    
+    todosLosBotones.forEach(b => {
+        b.disabled = true;
+        // Pinta de verde la correcta de fondo
+        if (b.textContent === preguntaActualObj.correcta) {
+            b.style.backgroundColor = 'var(--success)';
+            b.style.borderColor = 'var(--success)';
+            b.style.color = 'white';
+        }
+        // Si el usuario eligió esta opción y está mal, la pinta de rojo
+        if (b.textContent === opcion && opcion !== preguntaActualObj.correcta) {
+            b.style.backgroundColor = 'var(--error)';
+            b.style.borderColor = 'var(--error)';
+            b.style.color = 'white';
+        }
+    });
+
     const fb = document.getElementById('box-feedback');
 
     if (opcion === preguntaActualObj.correcta) {
         fb.textContent = '&#161;Correcto! &#128640;';
         fb.className   = 'feedback correct';
         puntos += 10;
+        contadorOK++; // Suma un OK
         document.getElementById('local-score').textContent = `${puntos} pts`;
     } else {
         fb.textContent = `Incorrecto. La respuesta era: ${preguntaActualObj.correcta}`;
         fb.className   = 'feedback incorrect';
+        contadorError++; // Suma un Error
     }
 
     const esUltima = (indicePregunta === preguntasPartida.length - 1);
     const btnNext  = document.getElementById('btn-next-action');
-    btnNext.textContent = esUltima ? 'Ver resultados &#127937;' : 'Siguiente &#10145;&#65039;';
+    // CORREGIDO EL STRING DE LA FLECHA ACÁ TAMBIÉN
+    btnNext.textContent = esUltima ? 'Ver resultados 🏁' : 'Siguiente ➡️';
     btnNext.style.display = 'block';
 }
 
+/* MODIFICADO: IMPRIME EN PANTALLA LOS TOTALES DE OK/ERROR AL FINAL */
 function avanzarPregunta() {
     indicePregunta++;
     if (indicePregunta < preguntasPartida.length) {
         renderizarPregunta();
     } else {
         document.getElementById('box-final-score').textContent = `${puntos} pts`;
+        
+        // Renderizamos los resultados detallados guardados en la jugada
+        document.getElementById('box-totales-jugada').innerHTML = `
+            <div style="display: flex; justify-content: space-around; font-size: 1.1rem; font-weight: bold; margin-top: 5px;">
+                <span style="color: var(--success);">Correctas (OK): ${contadorOK}</span>
+                <span style="color: var(--error);">Errores: ${contadorError}</span>
+            </div>
+        `;
+
         document.getElementById('result-liga').textContent =
             ligaSeleccionada
                 ? `${ligaSeleccionada.flag} ${ligaSeleccionada.nombre} &#183; ${partidoSeleccionado ? partidoSeleccionado.label : ''}`
@@ -661,10 +675,13 @@ function avanzarPregunta() {
         cambiarPantalla('scr-results');
     }
 }
+
 async function iniciarTrivia() {
     cambiarPantalla('scr-loading');
     puntos         = 0;
     indicePregunta = 0;
+    contadorOK     = 0; // REINICIA CONTADORES AL INICIAR UNA NUEVA PARTIDA
+    contadorError  = 0; 
     document.getElementById('local-score').textContent = '0 pts';
 
     const idPartido = partidoSeleccionado ? partidoSeleccionado.id_partido : '';
@@ -693,9 +710,10 @@ async function iniciarTrivia() {
         alert(`No se pudo armar la trivia para este partido.\nMotivo: ${err.message}`);
         volverAlMenu();
     }
-}    /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+}
+/* ──────────────────────────────────────────
    INIT
-&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
+────────────────────────────────────────── */
 cargarLigas();
 </script>
 </body>
