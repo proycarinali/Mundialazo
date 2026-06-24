@@ -710,12 +710,11 @@ async function iniciarTrivia() {
     indicePregunta = 0;
     document.getElementById('local-score').textContent = '0 pts';
 
-    // Obtenemos el nombre exacto del partido seleccionado (ej: "Real Madrid 2 - 1 FC Barcelona")
-    const nombrePartido = partidoSeleccionado ? partidoSeleccionado.label : '';
-    document.getElementById('loading-msg').textContent = `Generando trivia con IA para: ${nombrePartido}...`;
+    const idPartido = partidoSeleccionado ? partidoSeleccionado.id_partido : '';
+    const labelPartido = partidoSeleccionado ? partidoSeleccionado.label : '';
+    document.getElementById('loading-msg').textContent = `Generando trivia para: ${labelPartido}...`;
 
-    // Adjuntamos el nombre del partido seleccionado como parámetro en la URL
-    const urlEndpoint = `/api/trivias?partido_nombre=${encodeURIComponent(nombrePartido)}`;
+    const urlEndpoint = `/api/trivias?id_partido=${encodeURIComponent(idPartido)}`;
 
     try {
         const res = await fetch(urlEndpoint);
@@ -726,7 +725,6 @@ async function iniciarTrivia() {
         
         if (datos.preguntas && datos.preguntas.length > 0) {
             preguntasPartida = datos.preguntas;
-            // Todo salió bien, iniciamos el juego
             cambiarPantalla('scr-quiz');
             renderizarPregunta();
         } else {
@@ -735,12 +733,11 @@ async function iniciarTrivia() {
 
     } catch (err) {
         console.error('Error al armar la trivia:', err);
-        // En vez de usar la trivia de Qatar por defecto, mostramos el error en pantalla
         alert(`No se pudo armar la trivia para este partido.\nMotivo: ${err.message}`);
         volverAlMenu();
     }
 }
-/* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
+    /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
    INIT
 &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
 cargarLigas();
