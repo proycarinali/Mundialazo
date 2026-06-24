@@ -5,3 +5,5 @@ requests
 pydantic
 python-multipart
 psycopg2-binary>=2.9.10
+flask
+flask-cors
