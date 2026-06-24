@@ -106,11 +106,13 @@ def get_partidos_por_liga(liga_nombre, limite, conn):
     """
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT id_partido, fecha_partido, liga_nombre,
-               equipo_local_nombre, equipo_local_goles,
-               equipo_visitante_nombre, equipo_visitante_goles,
-               ganador, tanda_penales
-        FROM partidos
+        SELECT p.id_partido, p.fecha_partido, p.liga_nombre,
+               p.equipo_local_nombre, p.equipo_local_goles,
+               p.equipo_visitante_nombre, p.equipo_visitante_goles,
+               p.ganador, p.tanda_penales
+        FROM partidos p
+        inner join preguntas_partido pp
+        on pp.id_partido=p.id_partido
         WHERE liga_nombre ILIKE %s
         ORDER BY fecha_partido DESC
         LIMIT %s;
