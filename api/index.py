@@ -215,7 +215,6 @@ def api_partidos():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/api/trivias")
 def api_trivias():
     id_partido = request.args.get("id_partido", "").strip()
