@@ -322,21 +322,79 @@
 
 <script>
 /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
-   CONFIGURACI&#211;N DE LIGAS
-   Cada liga apunta al endpoint real del backend.
-   Para ligas sin endpoint propio se usa /api/trivias
-   con el partido cargado en Supabase.
+   LIGAS &#8212; se cargan din&#225;micamente desde /api/ligas
 &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
-const LIGAS = [
-    { id: "mundial",    nombre: "World Cup",         pais: "Internacional", flag: "&#127757;", endpoint: "/api/trivias" },
-    { id: "epl",        nombre: "Premier League",     pais: "Inglaterra",    flag: "&#127988;", endpoint: "/api/trivias" },
-    { id: "laliga",     nombre: "La Liga",            pais: "Espa&#241;a",        flag: "&#127466;&#127480;", endpoint: "/api/trivias" },
-    { id: "seriea",     nombre: "Serie A",            pais: "Italia",        flag: "&#127470;&#127481;", endpoint: "/api/trivias" },
-    { id: "bundesliga", nombre: "Bundesliga",         pais: "Alemania",      flag: "&#127465;&#127466;", endpoint: "/api/trivias" },
-    { id: "ligue1",     nombre: "Ligue 1",            pais: "Francia",       flag: "&#127467;&#127479;", endpoint: "/api/trivias" },
-    { id: "champions",  nombre: "Champions League",   pais: "Europa",        flag: "&#11088;", endpoint: "/api/trivias" },
-    { id: "mls",        nombre: "MLS",               pais: "USA",           flag: "&#127482;&#127480;", endpoint: "/api/trivias" },
+let LIGAS = [];
+
+// Mapeo palabras clave &#8594; flag y pa&#237;s
+const LIGA_META = [
+    { keys: ["premier league", "epl"],            flag: "&#127988;&#65039;",       pais: "Inglaterra"     },
+    { keys: ["la liga", "laliga"],                flag: "&#127466;&#127480;",       pais: "Espa&#241;a"        },
+    { keys: ["serie a"],                          flag: "&#127470;&#127481;",       pais: "Italia"         },
+    { keys: ["bundesliga"],                       flag: "&#127465;&#127466;",       pais: "Alemania"       },
+    { keys: ["ligue 1", "ligue1"],                flag: "&#127467;&#127479;",       pais: "Francia"        },
+    { keys: ["champions league", "champions"],    flag: "&#11088;",            pais: "Europa"         },
+    { keys: ["europa league"],                    flag: "&#127466;&#127482;",       pais: "Europa"         },
+    { keys: ["mls"],                              flag: "&#127482;&#127480;",       pais: "USA"            },
+    { keys: ["world cup", "mundial", "fifa"],     flag: "&#127757;",           pais: "Internacional"  },
+    { keys: ["eredivisie"],                       flag: "&#127475;&#127473;",       pais: "Pa&#237;ses Bajos"  },
+    { keys: ["primeira liga", "liga nos"],        flag: "&#127477;&#127481;",       pais: "Portugal"       },
+    { keys: ["super lig"],                        flag: "&#127481;&#127479;",       pais: "Turqu&#237;a"       },
+    { keys: ["scottish"],                         flag: "&#127988;&#917607;&#917602;&#917619;&#917603;&#917620;&#917631;", pais: "Escocia"        },
+    { keys: ["argentina", "ligapro", "afa"],      flag: "&#127462;&#127479;",       pais: "Argentina"      },
+    { keys: ["brasileirao", "brasileiro"],        flag: "&#127463;&#127479;",       pais: "Brasil"         },
 ];
+
+function inferirMetaLiga(nombre) {
+    const lower = nombre.toLowerCase();
+    for (const meta of LIGA_META) {
+        if (meta.keys.some(k => lower.includes(k))) {
+            return { flag: meta.flag, pais: meta.pais };
+        }
+    }
+    return { flag: "&#9917;", pais: "Internacional" };
+}
+
+async function cargarLigas() {
+    const grid = document.getElementById('leagues-grid');
+    grid.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center"><div class="loader"></div>Cargando ligas...</div>';
+
+    try {
+        const res = await fetch('/api/ligas');
+        if (!res.ok) throw new Error('No se pudo conectar');
+        const datos = await res.json();
+
+        if (datos.ligas && datos.ligas.length > 0) {
+            LIGAS = datos.ligas.map(l => {
+                const meta = inferirMetaLiga(l.liga_nombre);
+                return {
+                    id:       l.liga_nombre.toLowerCase().replace(/\s+/g, '_'),
+                    nombre:   l.liga_nombre,
+                    pais:     meta.pais,
+                    flag:     meta.flag,
+                    endpoint: "/api/trivias",
+                    total:    l.total_partidos,
+                };
+            });
+        } else {
+            throw new Error('Sin ligas en la BD');
+        }
+    } catch (e) {
+        console.warn('No se pudo cargar ligas del backend, usando lista por defecto.', e);
+        LIGAS = [
+            { id: "mundial",    nombre: "World Cup",        pais: "Internacional", flag: "&#127757;",           endpoint: "/api/trivias" },
+            { id: "epl",        nombre: "Premier League",   pais: "Inglaterra",    flag: "&#127988;&#65039;",       endpoint: "/api/trivias" },
+            { id: "laliga",     nombre: "La Liga",          pais: "Espa&#241;a",        flag: "&#127466;&#127480;",       endpoint: "/api/trivias" },
+            { id: "seriea",     nombre: "Serie A",          pais: "Italia",        flag: "&#127470;&#127481;",       endpoint: "/api/trivias" },
+            { id: "bundesliga", nombre: "Bundesliga",       pais: "Alemania",      flag: "&#127465;&#127466;",       endpoint: "/api/trivias" },
+            { id: "ligue1",     nombre: "Ligue 1",          pais: "Francia",       flag: "&#127467;&#127479;",       endpoint: "/api/trivias" },
+            { id: "champions",  nombre: "Champions League", pais: "Europa",        flag: "&#11088;",            endpoint: "/api/trivias" },
+            { id: "mls",        nombre: "MLS",              pais: "USA",           flag: "&#127482;&#127480;",       endpoint: "/api/trivias" },
+        ];
+    }
+
+    renderMenuLigas();
+}
 
 /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
    BANCO LOCAL DE EMERGENCIA
@@ -685,7 +743,7 @@ async function iniciarTrivia() {
 /* &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;
    INIT
 &#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472;&#9472; */
-renderMenuLigas();
+cargarLigas();
 </script>
 </body>
 </html>
