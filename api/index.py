@@ -218,38 +218,23 @@ def api_partidos():
 
 @app.route("/api/trivias")
 def api_trivias():
-    """
-    Devuelve las preguntas de trivia de un partido.
-    Query params:
-      partido_nombre (str, requerido) — label del partido, ej. "Real Madrid 2 - 1 FC Barcelona"
-    Respuesta:
-      { "preguntas": [ { "pregunta", "opciones": [...], "correcta" }, ... ] }
-    """
-    partido_nombre = request.args.get("partido_nombre", "").strip()
+    id_partido = request.args.get("id_partido", "").strip()
 
-    if not partido_nombre:
-        return jsonify({"error": "Falta el parámetro partido_nombre"}), 400
+    if not id_partido:
+        return jsonify({"error": "Falta el parámetro id_partido"}), 400
 
     try:
-        conn = conectar_supabase()
-
-        id_partido = get_id_partido_por_nombre(partido_nombre, conn)
-        if not id_partido:
-            conn.close()
-            return jsonify({"error": f"No se encontró el partido: {partido_nombre}"}), 404
-
+        conn  = conectar_supabase()
         filas = obtener_preguntas_partido(id_partido, conn)
         conn.close()
 
         if not filas:
             return jsonify({"error": "No hay preguntas cargadas para este partido"}), 404
 
-        # Convertimos al formato que espera el HTML:
-        # { "pregunta": str, "opciones": [str, ...], "correcta": str }
         preguntas = []
         for item in filas:
-            opciones  = [op["texto"] for op in item["opciones"]]
-            correcta  = next(
+            opciones = [op["texto"] for op in item["opciones"]]
+            correcta = next(
                 (op["texto"] for op in item["opciones"] if op["es_correcta"]),
                 opciones[0] if opciones else ""
             )
