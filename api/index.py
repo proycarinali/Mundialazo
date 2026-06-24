@@ -17,6 +17,54 @@ DB_USER = "postgres.vlndghikrjvxmiibbqbo"
 DB_PASS = "Lif#Cari.Fuk"
 DB_PORT = "6543"
 
+def obtener_preguntas_partido(id_partido, conn):
+    """
+    Devuelve todas las preguntas con sus opciones para un partido dado.
+    Formato de retorno:
+    [
+      {
+        "id_pregunta": str,
+        "nro_pregunta": int,
+        "pregunta": str,
+        "opciones": [
+          {"id_respuesta": str, "letra": str, "texto": str, "es_correcta": bool},
+          ...
+        ]
+      },
+      ...
+    ]
+    Devuelve lista vacía si el partido no tiene preguntas cargadas.
+    """
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT p.id_pregunta, p.nro_pregunta, p.pregunta,
+               r.id_respuesta, r.letra, r.texto_opcion, r.es_correcta
+        FROM preguntas_partido p
+        JOIN respuestas_preguntas r ON r.id_pregunta = p.id_pregunta
+        WHERE p.id_partido = %s
+        ORDER BY p.nro_pregunta, r.letra;
+    ''', (id_partido,))
+    filas = cursor.fetchall()
+    cursor.close()
+
+    # Agrupar por pregunta
+    preguntas_dict = {}
+    for (id_preg, nro, texto_preg, id_resp, letra, texto_op, correcta) in filas:
+        if id_preg not in preguntas_dict:
+            preguntas_dict[id_preg] = {
+                "id_pregunta": id_preg,
+                "nro_pregunta": nro,
+                "pregunta": texto_preg,
+                "opciones": [],
+            }
+        preguntas_dict[id_preg]["opciones"].append({
+            "id_respuesta": id_resp,
+            "letra": letra,
+            "texto": texto_op,
+            "es_correcta": correcta,
+        })
+
+    return list(preguntas_dict.values())
 
 def conectar_supabase():
     return psycopg2.connect(
