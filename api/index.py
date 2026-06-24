@@ -106,7 +106,7 @@ def get_partidos_por_liga(liga_nombre, limite, conn):
     """
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT p.id_partido, p.fecha_partido, p.liga_nombre,
+        SELECT distinct p.id_partido, p.fecha_partido, p.liga_nombre,
                p.equipo_local_nombre, p.equipo_local_goles,
                p.equipo_visitante_nombre, p.equipo_visitante_goles,
                p.ganador, p.tanda_penales
