@@ -10,6 +10,7 @@ Expone:
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 import os
+import psycopg2
 
 DB_HOST = "aws-1-us-east-2.pooler.supabase.com"
 DB_NAME = "postgres"
@@ -17,6 +18,12 @@ DB_USER = "postgres.vlndghikrjvxmiibbqbo"
 DB_PASS = "Lif#Cari.Fuk"
 DB_PORT = "6543"
 
+def conectar_supabase():
+    return psycopg2.connect(
+        host=DB_HOST, database=DB_NAME,
+        user=DB_USER, password=DB_PASS, port=DB_PORT,
+        connect_timeout=10
+    )
 def obtener_preguntas_partido(id_partido, conn):
     """
     Devuelve todas las preguntas con sus opciones para un partido dado.
@@ -65,15 +72,6 @@ def obtener_preguntas_partido(id_partido, conn):
         })
 
     return list(preguntas_dict.values())
-
-def conectar_supabase():
-    return psycopg2.connect(
-        host=DB_HOST, database=DB_NAME,
-        user=DB_USER, password=DB_PASS, port=DB_PORT,
-        connect_timeout=10
-    )
-
-
 
 app = Flask(__name__, static_folder=".")
 CORS(app)
