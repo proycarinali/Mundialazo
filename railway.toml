@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "python main.py"
+startCommand = "python api/index.py"
