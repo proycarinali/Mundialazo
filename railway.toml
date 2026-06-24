@@ -1,2 +1,2 @@
 [deploy]
-startCommand = "gunicorn api:app --bind 0.0.0.0:$PORT"
+startCommand = "python main.py"
