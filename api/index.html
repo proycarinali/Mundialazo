@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>&#9917; Golazo IA - Trivia de F&#250;tbol</title>
+    <title>⚽ Golazo IA - Trivia de Fútbol</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root {
             --bg-color: #0b0f19;
@@ -12,12 +13,14 @@
             --primary-hover: #1d4ed8;
             --success: #10b981;
             --error: #ef4444;
+            --warning: #f59e0b;
             --text: #f3f4f6;
             --text-muted: #6b7280;
             --border: #1e293b;
             --option-bg: #1e293b;
             --option-border: #334155;
             --option-hover: #334155;
+            --gold: #fbbf24;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -45,13 +48,13 @@
 
         h1 { margin-top: 0; color: #fff; font-size: 2rem; }
         h2 { color: #fff; font-size: 1.4rem; margin-bottom: 8px; }
+        h3 { color: #fff; font-size: 1.1rem; margin-bottom: 6px; }
         p  { color: var(--text-muted); margin-top: 6px; }
 
-        /* --- SCREENS --- */
         .screen { display: none; }
         .screen.active { display: block; }
 
-        /* --- BOT&#211;N GEN&#201;RICO --- */
+        /* BOTONES */
         .btn {
             background-color: var(--primary);
             color: white;
@@ -63,10 +66,16 @@
             cursor: pointer;
             transition: background 0.2s;
             width: 100%;
-            margin-top: 15px;
+            margin-top: 12px;
         }
         .btn:hover { background-color: var(--primary-hover); }
         .btn:disabled { background-color: #4b5563; cursor: not-allowed; }
+        .btn-success { background-color: var(--success); }
+        .btn-success:hover { background-color: #059669; }
+        .btn-danger { background-color: var(--error); }
+        .btn-danger:hover { background-color: #dc2626; }
+        .btn-warning { background-color: var(--warning); color: #000; }
+        .btn-warning:hover { background-color: #d97706; }
 
         .btn-secondary {
             background-color: transparent;
@@ -78,10 +87,57 @@
             cursor: pointer;
             transition: all 0.2s;
             margin-top: 10px;
+            width: 100%;
         }
         .btn-secondary:hover { border-color: #fff; color: #fff; }
 
-        /* --- GRILLA DE LIGAS --- */
+        /* MENÚ PRINCIPAL */
+        .menu-options {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .menu-card {
+            background: var(--option-bg);
+            border: 1px solid var(--option-border);
+            border-radius: 12px;
+            padding: 18px 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .menu-card:hover {
+            border-color: var(--primary);
+            background: rgba(37,99,235,0.08);
+            transform: translateY(-1px);
+        }
+        .menu-card.premium {
+            border-color: var(--gold);
+            background: rgba(251,191,36,0.07);
+        }
+        .menu-card.premium:hover {
+            background: rgba(251,191,36,0.14);
+        }
+        .menu-card .mc-icon { font-size: 2rem; flex-shrink: 0; }
+        .menu-card .mc-content { flex: 1; }
+        .menu-card .mc-title { font-size: 1rem; font-weight: 700; color: var(--text); }
+        .menu-card .mc-desc  { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
+        .badge-pago {
+            font-size: 10px;
+            background: var(--gold);
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 700;
+            margin-left: 6px;
+        }
+
+        /* GRILLA DE LIGAS */
         .leagues-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
@@ -110,7 +166,7 @@
         .league-card .name { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; }
         .league-card .country { font-size: 10px; color: var(--text-muted); }
 
-        /* --- GRILLA DE PARTIDOS --- */
+        /* PARTIDOS */
         .matches-grid {
             display: grid;
             grid-template-columns: 1fr;
@@ -130,71 +186,64 @@
             align-items: center;
             justify-content: space-between;
         }
-        .match-card:hover {
-            background: var(--option-hover);
-            border-color: var(--primary);
-        }
-        .match-card.active {
-            border-color: var(--success);
-            background: rgba(16,185,129,0.08);
-        }
+        .match-card:hover { background: var(--option-hover); border-color: var(--primary); }
+        .match-card.active { border-color: var(--success); background: rgba(16,185,129,0.08); }
         .match-teams { font-size: 14px; font-weight: 600; color: var(--text); }
         .match-score {
-            font-size: 20px;
-            font-weight: 700;
-            color: #fff;
-            background: #0b0f19;
-            border-radius: 8px;
-            padding: 4px 12px;
-            min-width: 70px;
-            text-align: center;
-            flex-shrink: 0;
+            font-size: 20px; font-weight: 700; color: #fff;
+            background: #0b0f19; border-radius: 8px;
+            padding: 4px 12px; min-width: 70px; text-align: center; flex-shrink: 0;
         }
         .match-date { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
 
-        /* --- HEADER DE NAVEGACI&#211;N --- */
+        /* NAV */
         .nav-back {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 20px;
-            cursor: pointer;
-            color: var(--text-muted);
-            font-size: 13px;
-            width: fit-content;
-            transition: color 0.2s;
+            display: flex; align-items: center; gap: 8px;
+            margin-bottom: 20px; cursor: pointer;
+            color: var(--text-muted); font-size: 13px;
+            width: fit-content; transition: color 0.2s;
         }
         .nav-back:hover { color: #fff; }
-        .nav-back span { font-size: 16px; }
-
-        .section-header {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 4px;
-        }
+        .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
         .league-badge {
-            font-size: 11px;
-            background: rgba(37,99,235,0.2);
-            border: 1px solid rgba(37,99,235,0.4);
-            color: #93c5fd;
-            padding: 3px 10px;
-            border-radius: 20px;
+            font-size: 11px; background: rgba(37,99,235,0.2);
+            border: 1px solid rgba(37,99,235,0.4); color: #93c5fd;
+            padding: 3px 10px; border-radius: 20px;
         }
 
-        /* --- QUIZ --- */
+        /* QUIZ */
         .scoreboard {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            background: var(--option-bg);
-            padding: 10px 15px;
-            border-radius: 8px;
+            display: flex; justify-content: space-between;
+            margin-bottom: 14px; font-size: 0.9rem;
+            background: var(--option-bg); padding: 10px 15px; border-radius: 8px;
         }
+
+        /* TIMER */
+        .timer-bar-wrap {
+            background: var(--option-bg);
+            border-radius: 6px;
+            height: 8px;
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+        .timer-bar {
+            height: 100%;
+            width: 100%;
+            background: var(--success);
+            transition: width 1s linear, background 0.5s;
+            border-radius: 6px;
+        }
+        .timer-countdown {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-align: right;
+            margin-bottom: 6px;
+        }
+        .timer-danger { background: var(--error) !important; }
+        .timer-warning { background: var(--warning) !important; }
 
         .options-container {
-            margin: 20px 0;
+            margin: 16px 0;
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -217,379 +266,772 @@
         }
 
         .feedback {
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: bold;
-            margin-top: 15px;
-            display: none;
+            padding: 12px; border-radius: 8px;
+            font-weight: bold; margin-top: 12px; display: none;
         }
         .feedback.correct  { background: rgba(16,185,129,0.2); color: var(--success); display: block; }
         .feedback.incorrect{ background: rgba(239,68,68,0.2);  color: var(--error);   display: block; }
+        .feedback.timeout  { background: rgba(245,158,11,0.2); color: var(--warning); display: block; }
 
-        /* --- LOADER --- */
+        /* LOADER */
         .loader {
             border: 4px solid var(--option-bg);
             border-top: 4px solid var(--primary);
             border-radius: 50%;
-            width: 44px;
-            height: 44px;
+            width: 44px; height: 44px;
             animation: spin 0.9s linear infinite;
             margin: 24px auto;
         }
-        @animations spin { to { transform: rotate(360deg); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* --- RESULTS --- */
-        .result-score {
-            color: var(--success);
-            font-size: 2.8rem;
-            font-weight: 700;
+        /* RESULTS */
+        .result-score { color: var(--success); font-size: 2.8rem; font-weight: 700; margin: 16px 0; }
+        .result-league { font-size: 13px; color: var(--text-muted); margin-bottom: 4px; }
+
+        /* CREAR SALA */
+        .form-group { margin-top: 16px; text-align: left; }
+        .form-group label { font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 6px; }
+        .form-group input, .form-group select {
+            width: 100%; padding: 10px 14px;
+            background: var(--option-bg); border: 1px solid var(--option-border);
+            color: var(--text); border-radius: 8px; font-size: 0.95rem;
+        }
+        .form-group input:focus, .form-group select:focus {
+            outline: none; border-color: var(--primary);
+        }
+        .form-group select option { background: #1e293b; }
+
+        /* QR */
+        .qr-wrap {
+            background: white; border-radius: 12px;
+            padding: 16px; display: inline-block; margin: 16px auto;
+        }
+        .share-link-box {
+            background: var(--option-bg); border: 1px solid var(--option-border);
+            border-radius: 8px; padding: 12px; margin-top: 12px;
+            font-size: 0.8rem; word-break: break-all; color: #93c5fd;
+            text-align: left;
+        }
+
+        /* SALA - menú de sala */
+        .sala-status-badge {
+            display: inline-block; padding: 4px 14px;
+            border-radius: 20px; font-size: 0.8rem; font-weight: 700;
+            margin-bottom: 16px;
+        }
+        .sala-status-badge.abierta { background: rgba(16,185,129,0.2); color: var(--success); border: 1px solid var(--success); }
+        .sala-status-badge.cerrada { background: rgba(239,68,68,0.15); color: var(--error); border: 1px solid var(--error); }
+        .sala-info-box {
+            background: var(--option-bg); border-radius: 10px;
+            padding: 14px 16px; margin-bottom: 16px; text-align: left;
+        }
+        .sala-info-box .si-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.85rem; }
+        .sala-info-box .si-label { color: var(--text-muted); }
+        .sala-info-box .si-val   { color: var(--text); font-weight: 600; }
+
+        /* RANKING */
+        .ranking-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        .ranking-table th { color: var(--text-muted); font-size: 0.8rem; padding: 6px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+        .ranking-table td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
+        .ranking-table tr:last-child td { border-bottom: none; }
+        .rank-pos { font-weight: 700; width: 36px; }
+        .rank-1 { color: #fbbf24; }
+        .rank-2 { color: #94a3b8; }
+        .rank-3 { color: #cd7c2f; }
+
+        /* APODO */
+        .apodo-wrap { margin: 20px 0; }
+        .apodo-wrap input {
+            width: 100%; padding: 14px; font-size: 1.1rem; text-align: center;
+            background: var(--option-bg); border: 2px solid var(--primary);
+            color: var(--text); border-radius: 10px; letter-spacing: 1px;
+        }
+
+        /* JUGADORES CONTADOR */
+        .jugadores-count {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--option-bg); border-radius: 8px;
+            padding: 6px 14px; font-size: 0.85rem; margin-top: 8px;
+        }
+        .jc-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+
+        /* INFO DEMO */
+        .demo-banner {
+            background: rgba(245,158,11,0.12);
+            border: 1px solid rgba(245,158,11,0.3);
+            border-radius: 10px; padding: 12px 16px;
+            margin-bottom: 16px; font-size: 0.85rem; color: var(--warning);
+            text-align: left;
+        }
+
+        /* ML PAGO */
+        .ml-box {
+            background: rgba(37,99,235,0.06);
+            border: 1px solid rgba(37,99,235,0.2);
+            border-radius: 12px; padding: 20px;
             margin: 16px 0;
         }
-        .result-league {
-            font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-        }
+        .ml-price { font-size: 2rem; font-weight: 700; color: var(--gold); margin: 8px 0; }
+        .ml-detail { font-size: 0.82rem; color: var(--text-muted); }
     </style>
 </head>
 <body>
 <div class="container">
 
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA 0: MENÚ PRINCIPAL            -->
+    <!-- ══════════════════════════════════════ -->
     <div id="scr-menu" class="screen active">
-        <h1>&#9917; Golazo IA</h1>
-        <p>Trivia de f&#250;tbol en tiempo real con estad&#237;sticas reales. Eleg&#237; una liga para empezar.</p>
+        <h1>⚽ Golazo IA</h1>
+        <p>Trivia de fútbol en tiempo real. Desafía a tus amigos.</p>
 
-        <div class="leagues-grid" id="leagues-grid"></div>
+        <div class="menu-options">
+            <!-- MODO DEMO GRATUITO -->
+            <div class="menu-card" onclick="iniciarModoDemo()">
+                <div class="mc-icon">🎮</div>
+                <div class="mc-content">
+                    <div class="mc-title">Jugar demo gratuito</div>
+                    <div class="mc-desc">Trivia de muestra — Final del Mundial Qatar 2022</div>
+                </div>
+            </div>
+
+            <!-- CREAR SALA PAGA -->
+            <div class="menu-card premium" onclick="irACrearSala()">
+                <div class="mc-icon">🏟️</div>
+                <div class="mc-content">
+                    <div class="mc-title">Crear sala privada <span class="badge-pago">PREMIUM</span></div>
+                    <div class="mc-desc">Elegí un partido del Mundial y jugá con hasta 12 amigos</div>
+                </div>
+            </div>
+
+            <!-- ENTRAR A UNA SALA -->
+            <div class="menu-card" onclick="irAEntrarSala()">
+                <div class="mc-icon">🔗</div>
+                <div class="mc-content">
+                    <div class="mc-title">Entrar a una sala</div>
+                    <div class="mc-desc">Ingresá el código de sala que te compartieron</div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <div id="scr-partidos" class="screen">
-        <div class="nav-back" onclick="volverAlMenu()">
-            <span>&#8592;</span> Todas las ligas
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: CREAR SALA                  -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-crear-sala" class="screen">
+        <div class="nav-back" onclick="cambiarPantalla('scr-menu')">
+            <span>←</span> Volver al menú
         </div>
-        <div class="section-header">
-            <h2 id="partidos-liga-nombre">Liga</h2>
-            <span class="league-badge" id="partidos-liga-badge"></span>
+        <h2>🏟️ Crear sala privada</h2>
+        <p>Configurá tu sala para jugar con amigos</p>
+
+        <div class="form-group">
+            <label>Nombre de la sala</label>
+            <input type="text" id="input-sala-nombre" placeholder="Ej: Los cracks del martes" maxlength="40">
         </div>
-        <p>Eleg&#237; un partido para generar la trivia con IA</p>
 
-        <div class="matches-grid" id="matches-grid"></div>
+        <div class="form-group">
+            <label>Partido del Mundial (World Cup)</label>
+            <select id="select-partido-sala">
+                <option value="">Cargando partidos...</option>
+            </select>
+        </div>
 
-        <button class="btn-secondary" onclick="volverAlMenu()">&#8592; Cambiar liga</button>
+        <div class="form-group">
+            <label>Cantidad de jugadores (máx. 12)</label>
+            <select id="select-jugadores">
+                <option value="2">2 jugadores</option>
+                <option value="3">3 jugadores</option>
+                <option value="4">4 jugadores</option>
+                <option value="5">5 jugadores</option>
+                <option value="6" selected>6 jugadores</option>
+                <option value="7">7 jugadores</option>
+                <option value="8">8 jugadores</option>
+                <option value="9">9 jugadores</option>
+                <option value="10">10 jugadores</option>
+                <option value="11">11 jugadores</option>
+                <option value="12">12 jugadores</option>
+            </select>
+        </div>
+
+        <div class="ml-box">
+            <div style="font-size:0.9rem;color:var(--text-muted);">Para activar tu sala</div>
+            <div class="ml-price">$1.500 ARS</div>
+            <div class="ml-detail">Pago único • La sala dura 1 hora activa • Máx. 12 jugadores</div>
+        </div>
+
+        <button class="btn btn-warning" onclick="iniciarPagoML()">💳 Pagar con Mercado Libre</button>
+        <button class="btn-secondary" onclick="cambiarPantalla('scr-menu')">Cancelar</button>
     </div>
 
-    <div id="scr-loading" class="screen">
-        <h1>Generando Trivia...</h1>
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: PAGO EN PROCESO             -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-pago" class="screen">
+        <h2>💳 Redirigiendo a Mercado Libre...</h2>
         <div class="loader"></div>
-        <p id="loading-msg">Consultando estad&#237;sticas y generando preguntas con IA...</p>
+        <p id="pago-msg">Preparando tu pago seguro...</p>
+        <p style="margin-top:16px;font-size:0.8rem;">
+            Si la ventana no se abrió,
+            <a id="link-ml-manual" href="#" target="_blank" style="color:#93c5fd;">hacé clic acá</a>
+        </p>
+        <button class="btn-secondary" style="margin-top:20px;" onclick="simularPagoOK()">
+            ✅ Simular pago aprobado (dev)
+        </button>
+        <button class="btn-secondary" onclick="cambiarPantalla('scr-crear-sala')">← Volver</button>
     </div>
 
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: SALA CREADA (QR + LINK)     -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-sala-creada" class="screen">
+        <h2>🎉 ¡Sala creada!</h2>
+        <p id="sala-creada-nombre" style="font-size:1.1rem;color:#fff;margin-top:8px;font-weight:700;"></p>
+        <p style="margin-top:4px;">Compartí el QR o el link para que tus amigos entren</p>
+
+        <div class="qr-wrap">
+            <div id="qr-container"></div>
+        </div>
+
+        <div class="share-link-box" id="share-link-box"></div>
+
+        <button class="btn btn-success" onclick="copiarLink()">📋 Copiar link</button>
+        <button class="btn" onclick="irASalaComoAdmin()">🏟️ Ir a la sala</button>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: ENTRAR A SALA (por código)  -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-entrar-sala" class="screen">
+        <div class="nav-back" onclick="cambiarPantalla('scr-menu')">
+            <span>←</span> Volver al menú
+        </div>
+        <h2>🔗 Entrar a una sala</h2>
+        <p>Ingresá el código de sala que te compartieron</p>
+
+        <div class="form-group">
+            <label>Código de sala</label>
+            <input type="text" id="input-codigo-sala" placeholder="Ej: GOLAZO-ABC123" maxlength="30"
+                   style="text-transform:uppercase;letter-spacing:2px;">
+        </div>
+
+        <button class="btn" onclick="buscarSalaPorCodigo()">Entrar a la sala →</button>
+        <button class="btn-secondary" onclick="cambiarPantalla('scr-menu')">Cancelar</button>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: SALA (panel de control)     -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-sala" class="screen">
+        <div class="nav-back" onclick="cambiarPantalla('scr-menu')">
+            <span>←</span> Menú principal
+        </div>
+
+        <h2 id="sala-panel-nombre">🏟️ Sala</h2>
+        <div id="sala-panel-status" class="sala-status-badge cerrada">CERRADA</div>
+
+        <div class="sala-info-box">
+            <div class="si-row"><span class="si-label">Partido</span><span class="si-val" id="sala-panel-partido">—</span></div>
+            <div class="si-row"><span class="si-label">Jugadores</span><span class="si-val" id="sala-panel-jugadores">—</span></div>
+            <div class="si-row"><span class="si-label">Tiempo restante</span><span class="si-val" id="sala-panel-tiempo">—</span></div>
+        </div>
+
+        <!-- Botones que cambian según rol y estado -->
+        <div id="sala-panel-botones"></div>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: INGRESAR APODO              -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-apodo" class="screen">
+        <h2>👤 Tu apodo</h2>
+        <p>¿Cómo te llaman en la cancha?</p>
+        <div class="apodo-wrap">
+            <input type="text" id="input-apodo" placeholder="Tu apodo" maxlength="20"
+                   onkeydown="if(event.key==='Enter')confirmarApodo()">
+        </div>
+        <button class="btn" onclick="confirmarApodo()">¡A jugar! ⚽</button>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: CARGANDO                    -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-loading" class="screen">
+        <h1>Cargando...</h1>
+        <div class="loader"></div>
+        <p id="loading-msg">Un momento...</p>
+    </div>
+
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: QUIZ                        -->
+    <!-- ══════════════════════════════════════ -->
     <div id="scr-quiz" class="screen">
+        <!-- Modo demo banner -->
+        <div id="demo-banner" class="demo-banner" style="display:none;">
+            🎮 Modo demo — jugás solo, sin sala. <a href="#" onclick="irACrearSala();return false;" style="color:var(--gold);">Crear sala →</a>
+        </div>
+
         <div class="scoreboard">
             <span id="quiz-progress">Pregunta: 0/0</span>
             <span id="local-score" style="color:var(--success);font-weight:bold;">0 pts</span>
         </div>
+
+        <div class="timer-countdown" id="timer-countdown">⏱ 30s</div>
+        <div class="timer-bar-wrap">
+            <div class="timer-bar" id="timer-bar"></div>
+        </div>
+
         <h3 id="box-pregunta" style="text-align:left;line-height:1.5;">Cargando...</h3>
         <div id="container-options" class="options-container"></div>
         <div id="box-feedback" class="feedback"></div>
         <button id="btn-next-action" class="btn" style="display:none;" onclick="avanzarPregunta()">Siguiente ➡️</button>
     </div>
 
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: RESULTADOS                  -->
+    <!-- ══════════════════════════════════════ -->
     <div id="scr-results" class="screen">
-        <h1>&#127942; &#161;Trivia completada!</h1>
+        <h1>🏆 ¡Trivia completada!</h1>
         <p class="result-league" id="result-liga"></p>
-        <p>Tu puntuaci&#243;n final:</p>
+        <p>Tu puntuación final:</p>
         <div class="result-score" id="box-final-score">0 pts</div>
-        <div id="box-totales-jugada" style="margin-bottom: 20px; padding: 10px; background: var(--option-bg); border-radius: 8px;"></div>
-        <button class="btn" onclick="volverAlMenu()">Jugar otra vez &#128260;</button>
-        <button class="btn-secondary" onclick="cambiarPantalla('scr-partidos')">Otro partido de la misma liga</button>
+        <div id="box-totales-jugada" style="margin-bottom:20px;padding:10px;background:var(--option-bg);border-radius:8px;"></div>
+        <div id="btn-volver-sala" style="display:none;">
+            <button class="btn" onclick="volverASalaPostJuego()">🏟️ Ver sala / Ranking</button>
+        </div>
+        <div id="btn-volver-menu" style="display:none;">
+            <button class="btn" onclick="volverAlMenu()">🔄 Jugar otra vez</button>
+        </div>
     </div>
 
-</div>
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: RANKING                     -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-ranking" class="screen">
+        <div class="nav-back" onclick="volverASalaPostJuego()">
+            <span>←</span> Volver a la sala
+        </div>
+        <h2>🏅 Ranking de la sala</h2>
+        <p id="ranking-sala-nombre" style="color:var(--text-muted);margin-bottom:16px;"></p>
+        <table class="ranking-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Jugador</th>
+                    <th style="text-align:right;">Puntos</th>
+                    <th style="text-align:right;">✅</th>
+                    <th style="text-align:right;">❌</th>
+                </tr>
+            </thead>
+            <tbody id="ranking-tbody"></tbody>
+        </table>
+        <button class="btn-secondary" style="margin-top:20px;" onclick="volverASalaPostJuego()">← Volver a la sala</button>
+    </div>
 
+</div><!-- /container -->
+
+<!-- ══════════════════════════════════════════════════════════════
+     SCRIPTS
+══════════════════════════════════════════════════════════════ -->
 <script>
-/* ──────────────────────────────────────────
-   LIGAS — se cargan dinámicamente desde /api/ligas
-────────────────────────────────────────── */
-let LIGAS = [];
+/* ─────────────────────────────────────────
+   AUDIO — campanitas via Web Audio API
+───────────────────────────────────────── */
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-const LIGA_META = [
-    { keys: ["premier league", "epl"],            flag: "&#127988;&#65039;",       pais: "Inglaterra"     },
-    { keys: ["la liga", "laliga"],                flag: "&#127466;&#127480;",       pais: "Espa&#241;a"        },
-    { keys: ["serie a"],                          flag: "&#127470;&#127481;",       pais: "Italia"         },
-    { keys: ["bundesliga"],                       flag: "&#127465;&#127466;",       pais: "Alemania"       },
-    { keys: ["ligue 1", "ligue1"],                flag: "&#127467;&#127479;",       pais: "Francia"        },
-    { keys: ["champions league", "champions"],    flag: "&#11088;",            pais: "Europa"         },
-    { keys: ["europa league"],                    flag: "&#127466;&#127482;",       pais: "Europa"         },
-    { keys: ["mls"],                              flag: "&#127482;&#127480;",       pais: "USA"            },
-    { keys: ["world cup", "mundial", "fifa"],     flag: "&#127757;",           pais: "Internacional"  },
-    { keys: ["eredivisie"],                       flag: "&#127475;&#127473;",       pais: "Pa&#237;ses Bajos"  },
-    { keys: ["primeira liga", "liga nos"],        flag: "&#127477;&#127481;",       pais: "Portugal"       },
-    { keys: ["super lig"],                        flag: "&#127481;&#127479;",       pais: "Turqu&#237;a"       },
-    { keys: ["scottish"],                         flag: "&#127988;&#917607;&#917602;&#917619;&#917603;&#917620;&#917631;", pais: "Escocia"        },
-    { keys: ["argentina", "ligapro", "afa"],      flag: "&#127462;&#127479;",       pais: "Argentina"      },
-    { keys: ["brasileirao", "brasileiro"],        flag: "&#127463;&#127479;",       pais: "Brasil"         },
-];
+function playBeep(type) {
+    const osc  = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
 
-function inferirMetaLiga(nombre) {
-    const lower = nombre.toLowerCase();
-    for (const meta of LIGA_META) {
-        if (meta.keys.some(k => lower.includes(k))) {
-            return { flag: meta.flag, pais: meta.pais };
-        }
+    if (type === 'ok') {
+        osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(1100, audioCtx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+    } else if (type === 'error') {
+        osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(220, audioCtx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.4);
+    } else if (type === 'timeout') {
+        osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.3);
     }
-    return { flag: "&#9917;", pais: "Internacional" };
 }
 
-async function cargarLigas() {
-    const grid = document.getElementById('leagues-grid');
-    grid.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center"><div class="loader"></div>Cargando ligas...</div>';
-
-    try {
-        const res = await fetch('/api/ligas');
-        if (!res.ok) throw new Error('No se pudo conectar');
-        const datos = await res.json();
-
-        if (datos.ligas && datos.ligas.length > 0) {
-            LIGAS = datos.ligas.map(l => {
-                const meta = inferirMetaLiga(l.liga_nombre);
-                return {
-                    id:       l.liga_nombre.toLowerCase().replace(/\s+/g, '_'),
-                    nombre:   l.liga_nombre,
-                    pais:     meta.pais,
-                    flag:     meta.flag,
-                    endpoint: "/api/trivias",
-                    total:    l.total_partidos,
-                };
-            });
-        } else {
-            throw new Error('Sin ligas en la BD');
-        }
-    } catch (e) {
-        console.warn('No se pudo cargar ligas del backend, usando lista por defecto.', e);
-        LIGAS = [
-            { id: "mundial",    nombre: "World Cup",        pais: "Internacional", flag: "&#127757;",           endpoint: "/api/trivias" },
-            { id: "epl",        nombre: "Premier League",   pais: "Inglaterra",    flag: "&#127988;&#65039;",       endpoint: "/api/trivias" },
-            { id: "laliga",     nombre: "La Liga",          pais: "Espa&#241;a",        flag: "&#127466;&#127480;",       endpoint: "/api/trivias" },
-            { id: "seriea",     nombre: "Serie A",          pais: "Italia",        flag: "&#127470;&#127481;",       endpoint: "/api/trivias" },
-            { id: "bundesliga", nombre: "Bundesliga",       pais: "Alemania",      flag: "&#127465;&#127466;",       endpoint: "/api/trivias" },
-            { id: "ligue1",     nombre: "Ligue 1",          pais: "Francia",       flag: "&#127467;&#127479;",       endpoint: "/api/trivias" },
-            { id: "champions",  nombre: "Champions League", pais: "Europa",        flag: "&#11088;",            endpoint: "/api/trivias" },
-            { id: "mls",        nombre: "MLS",              pais: "USA",           flag: "&#127482;&#127480;",       endpoint: "/api/trivias" },
-        ];
-    }
-
-    renderMenuLigas();
-}
-
-/* ──────────────────────────────────────────
-   BANCO LOCAL DE EMERGENCIA
-────────────────────────────────────────── */
-const BANCO_NATIVO = [
-    {"pregunta":"&#191;Qu&#233; resultado tuvo la Final del Mundial Qatar 2022 al final del tiempo reglamentario?","opciones":["Argentina 2-2 Francia","Argentina 3-3 Francia","Argentina 2-0 Francia"],"correcta":"Argentina 3-3 Francia"},
-    {"pregunta":"&#191;Cu&#225;ntos goles marc&#243; Kylian Mbapp&#233; en la Final de Qatar 2022?","opciones":["1","2","3"],"correcta":"3"},
-    {"pregunta":"&#191;Qui&#233;n abri&#243; el marcador en la Final de Qatar 2022?","opciones":["Lionel Messi","&#193;ngel Di Mar&#237;a","Juli&#225;n &#193;lvarez"],"correcta":"Lionel Messi"},
-    {"pregunta":"&#191;En qu&#233; estadio se jug&#243; la Final del Mundial Qatar 2022?","opciones":["Estadio Al Bayt","Estadio Lusail","Estadio Al Thumama"],"correcta":"Estadio Lusail"},
-    {"pregunta":"&#191;C&#243;mo termin&#243; la tanda de penales en la Final de Qatar 2022?","opciones":["Argentina 4-2 Francia","Argentina 3-2 Francia","Argentina 5-3 Francia"],"correcta":"Argentina 4-2 Francia"},
-    {"pregunta":"&#191;Qui&#233;n ataj&#243; el penal decisivo en la Final de Qatar 2022?","opciones":["Franco Armani","Emiliano Mart&#237;nez","Sergio Romero"],"correcta":"Emiliano Mart&#237;nez"},
-    {"pregunta":"&#191;Qu&#233; jugador convirti&#243; el segundo gol de Argentina en la Final?","opciones":["&#193;ngel Di Mar&#237;a","Juli&#225;n &#193;lvarez","Lionel Messi"],"correcta":"&#193;ngel Di Mar&#237;a"},
-    {"pregunta":"&#191;Cu&#225;ndo se jug&#243; la Final del Mundial Qatar 2022?","opciones":["11 de diciembre de 2022","18 de diciembre de 2022","25 de diciembre de 2022"],"correcta":"18 de diciembre de 2022"},
-    {"pregunta":"&#191;Cu&#225;ntas Copas del Mundo gan&#243; Argentina hasta Qatar 2022?","opciones":["2","3","4"],"correcta":"3"},
-    {"pregunta":"&#191;Qui&#233;n fue el &#225;rbitro de la Final de Qatar 2022?","opciones":["Szymon Marciniak","Wilton Sampaio","St&#233;phanie Frappart"],"correcta":"Szymon Marciniak"},
-    {"pregunta":"&#191;En qu&#233; minuto marc&#243; Mbapp&#233; su primer gol en la Final de Qatar 2022?","opciones":["Minuto 70","Minuto 80","Minuto 90"],"correcta":"Minuto 80"},
-    {"pregunta":"&#191;Qu&#233; r&#233;cord personal alcanz&#243; Messi al ganar Qatar 2022?","opciones":["Su primer Bal&#243;n de Oro","Su primera Copa del Mundo","Su primer gol mundialista"],"correcta":"Su primera Copa del Mundo"},
-];
-
-/* ──────────────────────────────────────────
+/* ─────────────────────────────────────────
    ESTADO GLOBAL
-────────────────────────────────────────── */
-let ligaSeleccionada  = null;
-let partidoSeleccionado = null;
+───────────────────────────────────────── */
+let modoDemo          = false;
+let salaActual        = null;   // objeto sala: {codigo, nombre, id_partido, max_jugadores, estado, admin}
+let esAdmin           = false;
+let apodoJugador      = localStorage.getItem('golazo_apodo') || '';
 let preguntasPartida  = [];
 let indicePregunta    = 0;
 let puntos            = 0;
-let preguntaActualObj = null;
-
-// AGREGADOS: CONTADORES GLOBALES DE LA JUGADA
 let contadorOK        = 0;
 let contadorError     = 0;
+let preguntaActualObj = null;
+let timerInterval     = null;
+let tiempoRestante    = 30;
+let salaPendiente     = null;   // sala siendo creada antes del pago
 
-/* ──────────────────────────────────────────
+/* ─────────────────────────────────────────
+   BANCO DEMO (Final Qatar 2022)
+───────────────────────────────────────── */
+const BANCO_DEMO = [
+    { pregunta:"¿Qué resultado tuvo la Final del Mundial Qatar 2022 al final del tiempo reglamentario?", opciones:["Argentina 2-2 Francia","Argentina 3-3 Francia","Argentina 2-0 Francia"], correcta:"Argentina 3-3 Francia" },
+    { pregunta:"¿Cuántos goles marcó Kylian Mbappé en la Final de Qatar 2022?", opciones:["1","2","3"], correcta:"3" },
+    { pregunta:"¿Quién abrió el marcador en la Final de Qatar 2022?", opciones:["Lionel Messi","Ángel Di María","Julián Álvarez"], correcta:"Lionel Messi" },
+    { pregunta:"¿En qué estadio se jugó la Final del Mundial Qatar 2022?", opciones:["Estadio Al Bayt","Estadio Lusail","Estadio Al Thumama"], correcta:"Estadio Lusail" },
+    { pregunta:"¿Cómo terminó la tanda de penales en la Final de Qatar 2022?", opciones:["Argentina 4-2 Francia","Argentina 3-2 Francia","Argentina 5-3 Francia"], correcta:"Argentina 4-2 Francia" },
+    { pregunta:"¿Quién atajó el penal decisivo en la Final de Qatar 2022?", opciones:["Franco Armani","Emiliano Martínez","Sergio Romero"], correcta:"Emiliano Martínez" },
+    { pregunta:"¿Qué jugador convirtió el segundo gol de Argentina en la Final?", opciones:["Ángel Di María","Julián Álvarez","Lionel Messi"], correcta:"Ángel Di María" },
+    { pregunta:"¿Cuándo se jugó la Final del Mundial Qatar 2022?", opciones:["11 de diciembre de 2022","18 de diciembre de 2022","25 de diciembre de 2022"], correcta:"18 de diciembre de 2022" },
+    { pregunta:"¿Cuántas Copas del Mundo ganó Argentina hasta Qatar 2022?", opciones:["2","3","4"], correcta:"3" },
+    { pregunta:"¿Quién fue el árbitro de la Final de Qatar 2022?", opciones:["Szymon Marciniak","Wilton Sampaio","Stéphanie Frappart"], correcta:"Szymon Marciniak" },
+];
+
+/* ─────────────────────────────────────────
    NAVEGACIÓN
-────────────────────────────────────────── */
+───────────────────────────────────────── */
 function cambiarPantalla(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(id).classList.add('active');
 }
 
 function volverAlMenu() {
-    ligaSeleccionada   = null;
-    partidoSeleccionado = null;
+    detenerTimer();
+    salaActual = null; esAdmin = false; modoDemo = false;
     cambiarPantalla('scr-menu');
 }
 
-/* ──────────────────────────────────────────
-   RENDER DEL MENÚ DE LIGAS
-────────────────────────────────────────── */
-function renderMenuLigas() {
-    const grid = document.getElementById('leagues-grid');
-    grid.innerHTML = '';
-    LIGAS.forEach(liga => {
-        const card = document.createElement('div');
-        card.className = 'league-card';
-        card.innerHTML = `
-            <span class="flag">${liga.flag}</span>
-            <span class="name">${liga.nombre}</span>
-            <span class="country">${liga.pais}</span>
-        `;
-        card.onclick = () => seleccionarLiga(liga);
-        grid.appendChild(card);
-    });
+/* ─────────────────────────────────────────
+   MODO DEMO
+───────────────────────────────────────── */
+function iniciarModoDemo() {
+    modoDemo = true;
+    preguntasPartida = BANCO_DEMO;
+    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
+    document.getElementById('local-score').textContent = '0 pts';
+    document.getElementById('demo-banner').style.display = 'block';
+    cambiarPantalla('scr-quiz');
+    renderizarPregunta();
 }
 
-/* ──────────────────────────────────────────
-   SELECCIÓN DE LIGA → carga últimos partidos
-────────────────────────────────────────── */
-async function seleccionarLiga(liga) {
-    ligaSeleccionada = liga;
+/* ─────────────────────────────────────────
+   CREAR SALA
+───────────────────────────────────────── */
+async function irACrearSala() {
+    cambiarPantalla('scr-crear-sala');
+    await cargarPartidosMundialParaSala();
+}
 
-    document.getElementById('partidos-liga-nombre').textContent = `${liga.flag} ${liga.nombre}`;
-    document.getElementById('partidos-liga-badge').textContent  = liga.pais;
-
-    const grid = document.getElementById('matches-grid');
-    grid.innerHTML = '<div style="color:var(--text-muted);padding:20px;text-align:center"><div class="loader"></div>Cargando partidos...</div>';
-    cambiarPantalla('scr-partidos');
-
-    let partidos = [];
+async function cargarPartidosMundialParaSala() {
+    const sel = document.getElementById('select-partido-sala');
+    sel.innerHTML = '<option value="">Cargando partidos del Mundial...</option>';
     try {
-        const res = await fetch(`/api/partidos?liga_nombre=${encodeURIComponent(liga.nombre)}&limit=3`);
-        if (!res.ok) throw new Error('No se pudo conectar');
+        const res = await fetch('/api/partidos?liga_nombre=World+Cup&limit=30');
         const datos = await res.json();
-
         if (datos.partidos && datos.partidos.length > 0) {
-            partidos = datos.partidos.map(p => ({
-                id_partido: p.id_partido,
-                label:   p.label,
-                fecha:   p.fecha   || '',
-                liga:    p.liga    || liga.nombre,
-                ganador: p.ganador || '',
-                source:  'api',
-            }));
+            sel.innerHTML = '<option value="">— Seleccioná un partido —</option>';
+            datos.partidos.forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id_partido;
+                opt.textContent = `${p.label} (${p.fecha})`;
+                opt.dataset.label = p.label;
+                sel.appendChild(opt);
+            });
+        } else {
+            throw new Error('sin partidos');
         }
-    } catch (e) {
-        console.warn('No se pudo conectar al backend:', e);
-    }
-
-    if (partidos.length === 0) {
-        partidos = getPartidosFallback(liga.id);
-    }
-
-    renderPartidos(partidos);
-}
-
-/* ──────────────────────────────────────────
-   PARTIDOS ESTÁTICOS DE FALLBACK POR LIGA
-────────────────────────────────────────── */
-function getPartidosFallback(ligaId) {
-    const fallbacks = {
-        mundial:    [
-            { label: "Argentina 3 - 3 Francia (4-2 pen)",   fecha: "18/12/2022", liga: "FIFA World Cup", source: "local" },
-            { label: "Argentina 3 - 0 Croacia",              fecha: "13/12/2022", liga: "FIFA World Cup", source: "local" },
-            { label: "Francia 2 - 0 Marruecos",              fecha: "14/12/2022", liga: "FIFA World Cup", source: "local" },
-        ],
-        epl:        [
-            { label: "Manchester City 3 - 1 Arsenal",        fecha: "22/09/2024", liga: "Premier League", source: "local" },
-            { label: "Liverpool 2 - 0 Chelsea",              fecha: "20/10/2024", liga: "Premier League", source: "local" },
-            { label: "Arsenal 1 - 1 Tottenham",              fecha: "01/11/2024", liga: "Premier League", source: "local" },
-        ],
-        laliga:     [
-            { label: "Real Madrid 2 - 1 FC Barcelona",       fecha: "26/10/2024", liga: "La Liga",        source: "local" },
-            { label: "Atl&#233;tico Madrid 1 - 0 Sevilla",        fecha: "06/10/2024", liga: "La Liga",        source: "local" },
-            { label: "FC Barcelona 3 - 1 Girona",            fecha: "19/10/2024", liga: "La Liga",        source: "local" },
-        ],
-        seriea:     [
-            { label: "Inter Milan 1 - 0 Juventus",           fecha: "27/10/2024", liga: "Serie A",        source: "local" },
-            { label: "AC Milan 2 - 2 Napoli",                fecha: "29/09/2024", liga: "Serie A",        source: "local" },
-            { label: "Roma 1 - 1 Lazio",                     fecha: "06/10/2024", liga: "Serie A",        source: "local" },
-        ],
-        bundesliga: [
-            { label: "Bayern M&#250;nich 4 - 0 Borussia Dortmund",fecha: "02/11/2024", liga: "Bundesliga",     source: "local" },
-            { label: "Bayer Leverkusen 2 - 1 Stuttgart",     fecha: "19/10/2024", liga: "Bundesliga",     source: "local" },
-            { label: "RB Leipzig 2 - 0 Eintracht Frankfurt", fecha: "05/10/2024", liga: "Bundesliga",     source: "local" },
-        ],
-        ligue1:     [
-            { label: "PSG 3 - 0 Olympique de Marsella",      fecha: "27/10/2024", liga: "Ligue 1",        source: "local" },
-            { label: "Monaco 2 - 1 Lyon",                    fecha: "19/10/2024", liga: "Ligue 1",        source: "local" },
-            { label: "Lille 1 - 0 Lens",                     fecha: "05/10/2024", liga: "Ligue 1",        source: "local" },
-        ],
-        champions:  [
-            { label: "Real Madrid 5 - 0 Celtic",             fecha: "05/11/2024", liga: "Champions",      source: "local" },
-            { label: "Manchester City 0 - 4 Sporting CP",    fecha: "05/11/2024", liga: "Champions",      source: "local" },
-            { label: "PSG 1 - 3 Atl&#233;tico Madrid",            fecha: "06/11/2024", liga: "Champions",      source: "local" },
-        ],
-        mls:        [
-            { label: "Inter Miami 2 - 1 LA Galaxy",          fecha: "01/11/2024", liga: "MLS",            source: "local" },
-            { label: "Seattle Sounders 1 - 0 Portland",      fecha: "19/10/2024", liga: "MLS",            source: "local" },
-            { label: "New York City 2 - 2 Toronto FC",       fecha: "05/10/2024", liga: "MLS",            source: "local" },
-        ],
-    };
-    return fallbacks[ligaId] || [
-        { label: "Partido 1 &#8212; pr&#243;ximamente", fecha: "", liga: "", source: "local" },
-    ];
-}
-
-/* ──────────────────────────────────────────
-   RENDER DE PARTIDOS EN LA PANTALLA 2
-────────────────────────────────────────── */
-function renderPartidos(partidos) {
-    const grid = document.getElementById('matches-grid');
-    grid.innerHTML = '';
-
-    partidos.slice(0, 3).forEach((p, i) => {
-        const partes = parsearPartido(p.label);
-
-        const card = document.createElement('div');
-        card.className = 'match-card';
-        card.innerHTML = `
-            <div>
-                <div class="match-teams">${partes.local} <span style="color:var(--text-muted);font-weight:400">vs</span> ${partes.visitante}</div>
-                <div class="match-date">${p.fecha ? '&#128197; ' + p.fecha : ''} ${p.liga ? '&#183; ' + p.liga : ''}</div>
-            </div>
-            <div class="match-score">${partes.score}</div>
+    } catch(e) {
+        // Fallback con partidos hardcodeados del Mundial
+        sel.innerHTML = `
+            <option value="">— Seleccioná un partido —</option>
+            <option value="wc_final_2022" data-label="Argentina 3 - 3 Francia (pen 4-2)">Argentina 3-3 Francia — Final (18/12/2022)</option>
+            <option value="wc_semi1_2022" data-label="Argentina 3 - 0 Croacia">Argentina 3-0 Croacia — Semifinal (13/12/2022)</option>
+            <option value="wc_semi2_2022" data-label="Francia 2 - 0 Marruecos">Francia 2-0 Marruecos — Semifinal (14/12/2022)</option>
+            <option value="wc_cuartos1_2022" data-label="Argentina 2 - 2 Holanda (pen 4-3)">Argentina 2-2 Holanda — Cuartos (09/12/2022)</option>
         `;
-        card.onclick = () => seleccionarPartido(p, card);
-        grid.appendChild(card);
-    });
+    }
 }
 
-function parsearPartido(label) {
-    const rx = /^(.+?)\s+(\d[\d&#8211;\-\s]*\d)\s+(.+?)(\s+\(.+\))?$/;
-    const m  = label.match(rx);
-    if (m) {
-        const scoreRx = /(\d+)\s*[-&#8211;]\s*(\d+)/;
-        const sm = label.match(scoreRx);
-        if (sm) {
-            const scoreStr = sm[0];
-            const idx = label.indexOf(scoreStr);
-            return {
-                local:     label.slice(0, idx).trim(),
-                visitante: label.slice(idx + scoreStr.length).replace(/\(.+\)/, '').trim(),
-                score:     scoreStr.replace(/\s/g, ''),
-            };
+async function iniciarPagoML() {
+    const nombre    = document.getElementById('input-sala-nombre').value.trim();
+    const idPartido = document.getElementById('select-partido-sala').value;
+    const selOpt    = document.getElementById('select-partido-sala');
+    const labelPartido = selOpt.options[selOpt.selectedIndex]?.dataset?.label
+                       || selOpt.options[selOpt.selectedIndex]?.textContent || '';
+    const maxJug    = parseInt(document.getElementById('select-jugadores').value);
+
+    if (!nombre)     { alert('Ingresá un nombre para la sala.'); return; }
+    if (!idPartido)  { alert('Seleccioná un partido del Mundial.'); return; }
+
+    // Generar código único para la sala
+    const codigo = 'GOLAZO-' + Math.random().toString(36).substring(2,8).toUpperCase();
+
+    salaPendiente = { nombre, idPartido, labelPartido, maxJugadores: maxJug, codigo };
+
+    // Redirigir a Mercado Libre (URL de preferencia real, acá usamos la de checkout)
+    const mlURL = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=GOLAZO_SALA_${codigo}`;
+    // En producción reemplazás pref_id con el ID real generado por tu backend de ML
+    document.getElementById('link-ml-manual').href = mlURL;
+    document.getElementById('pago-msg').textContent = `Redirigiendo para pagar la sala "${nombre}"...`;
+    cambiarPantalla('scr-pago');
+
+    // Abrir en nueva pestaña
+    setTimeout(() => { window.open(mlURL, '_blank'); }, 800);
+}
+
+async function simularPagoOK() {
+    // Simula pago aprobado — llama al backend para crear la sala
+    if (!salaPendiente) { alert('No hay sala pendiente.'); return; }
+
+    cambiarPantalla('scr-loading');
+    document.getElementById('loading-msg').textContent = 'Creando tu sala...';
+
+    try {
+        const res = await fetch('/api/salas/crear', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(salaPendiente),
+        });
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+
+        salaActual = datos.sala;
+        esAdmin    = true;
+        mostrarSalaCreada(datos.sala);
+    } catch(e) {
+        // Fallback local si el backend no está
+        salaActual = { ...salaPendiente, estado: 'cerrada', admin: true };
+        esAdmin    = true;
+        mostrarSalaCreada(salaActual);
+    }
+}
+
+function mostrarSalaCreada(sala) {
+    const link = `${window.location.origin}/?sala=${sala.codigo}`;
+    document.getElementById('sala-creada-nombre').textContent = sala.nombre;
+    document.getElementById('share-link-box').textContent = link;
+
+    // Generar QR
+    document.getElementById('qr-container').innerHTML = '';
+    new QRCode(document.getElementById('qr-container'), {
+        text: link, width: 160, height: 160,
+        colorDark: '#000000', colorLight: '#ffffff',
+    });
+
+    cambiarPantalla('scr-sala-creada');
+}
+
+function copiarLink() {
+    const link = document.getElementById('share-link-box').textContent;
+    navigator.clipboard.writeText(link).then(() => alert('¡Link copiado!'));
+}
+
+function irASalaComoAdmin() {
+    esAdmin = true;
+    renderPanelSala();
+    cambiarPantalla('scr-sala');
+}
+
+/* ─────────────────────────────────────────
+   ENTRAR A SALA (por código o URL)
+───────────────────────────────────────── */
+function irAEntrarSala() {
+    cambiarPantalla('scr-entrar-sala');
+}
+
+async function buscarSalaPorCodigo() {
+    const codigo = document.getElementById('input-codigo-sala').value.trim().toUpperCase();
+    if (!codigo) { alert('Ingresá el código de sala.'); return; }
+    await cargarSalaPorCodigo(codigo);
+}
+
+async function cargarSalaPorCodigo(codigo) {
+    cambiarPantalla('scr-loading');
+    document.getElementById('loading-msg').textContent = `Buscando sala ${codigo}...`;
+
+    try {
+        const res = await fetch(`/api/salas/${codigo}`);
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+
+        salaActual = datos.sala;
+        esAdmin    = false;
+        renderPanelSala();
+        cambiarPantalla('scr-sala');
+    } catch(e) {
+        alert(`No se encontró la sala "${codigo}". Verificá el código.`);
+        cambiarPantalla('scr-entrar-sala');
+    }
+}
+
+/* ─────────────────────────────────────────
+   PANEL DE SALA
+───────────────────────────────────────── */
+function renderPanelSala() {
+    if (!salaActual) return;
+
+    document.getElementById('sala-panel-nombre').textContent = `🏟️ ${salaActual.nombre}`;
+
+    const statusEl  = document.getElementById('sala-panel-status');
+    const abierta   = salaActual.estado === 'abierta';
+    statusEl.textContent = abierta ? '🟢 ABIERTA' : '🔴 CERRADA';
+    statusEl.className   = `sala-status-badge ${abierta ? 'abierta' : 'cerrada'}`;
+
+    document.getElementById('sala-panel-partido').textContent   = salaActual.labelPartido || salaActual.id_partido || '—';
+    document.getElementById('sala-panel-jugadores').textContent = `Máx. ${salaActual.maxJugadores || 12}`;
+
+    // Tiempo restante
+    let tiempoTxt = '—';
+    if (abierta && salaActual.abierta_en) {
+        const abiertaTs = new Date(salaActual.abierta_en).getTime();
+        const cierre    = abiertaTs + 60 * 60 * 1000; // 1 hora
+        const restMs    = cierre - Date.now();
+        if (restMs > 0) {
+            const min = Math.floor(restMs / 60000);
+            const sec = Math.floor((restMs % 60000) / 1000);
+            tiempoTxt = `${min}m ${sec}s`;
+        } else {
+            tiempoTxt = 'Cerrando...';
         }
     }
-    return { local: label, visitante: '', score: 'vs' };
+    document.getElementById('sala-panel-tiempo').textContent = tiempoTxt;
+
+    // Botones dinámicos
+    const botonesEl = document.getElementById('sala-panel-botones');
+    botonesEl.innerHTML = '';
+
+    if (esAdmin) {
+        if (!abierta) {
+            const btnAbrir = document.createElement('button');
+            btnAbrir.className = 'btn btn-success';
+            btnAbrir.textContent = '🟢 Abrir sala';
+            btnAbrir.onclick = () => abrirSala();
+            botonesEl.appendChild(btnAbrir);
+        } else {
+            const btnCerrar = document.createElement('button');
+            btnCerrar.className = 'btn btn-danger';
+            btnCerrar.textContent = '🔴 Cerrar sala';
+            btnCerrar.onclick = () => cerrarSala();
+            botonesEl.appendChild(btnCerrar);
+        }
+    }
+
+    if (abierta) {
+        const btnJugar = document.createElement('button');
+        btnJugar.className = 'btn';
+        btnJugar.textContent = '⚽ Jugar';
+        btnJugar.onclick = () => pedirApodoYJugar();
+        botonesEl.appendChild(btnJugar);
+
+        const btnRanking = document.createElement('button');
+        btnRanking.className = 'btn-secondary';
+        btnRanking.textContent = '🏅 Ver ranking (disponible al cerrar sala)';
+        btnRanking.disabled = true;
+        botonesEl.appendChild(btnRanking);
+    } else {
+        const btnJugar = document.createElement('button');
+        btnJugar.className = 'btn-secondary';
+        btnJugar.textContent = '⚽ Jugar (la sala debe estar abierta)';
+        btnJugar.disabled = true;
+        botonesEl.appendChild(btnJugar);
+
+        if (salaActual.tiene_jugadas) {
+            const btnRanking = document.createElement('button');
+            btnRanking.className = 'btn btn-warning';
+            btnRanking.textContent = '🏅 Ver ranking';
+            btnRanking.onclick = () => verRanking();
+            botonesEl.appendChild(btnRanking);
+        }
+    }
+
+    const btnCompartir = document.createElement('button');
+    btnCompartir.className = 'btn-secondary';
+    btnCompartir.textContent = '🔗 Compartir link de sala';
+    btnCompartir.onclick = () => {
+        const link = `${window.location.origin}/?sala=${salaActual.codigo}`;
+        navigator.clipboard.writeText(link).then(() => alert('¡Link copiado!'));
+    };
+    botonesEl.appendChild(btnCompartir);
 }
 
-/* ──────────────────────────────────────────
-   SELECCIÓN DE PARTIDO → inicia trivia
-────────────────────────────────────────── */
-function seleccionarPartido(partido, cardEl) {
-    document.querySelectorAll('.match-card').forEach(c => c.classList.remove('active'));
-    cardEl.classList.add('active');
-    partidoSeleccionado = partido;
-    setTimeout(() => iniciarTrivia(), 300);
+async function abrirSala() {
+    try {
+        const res = await fetch(`/api/salas/${salaActual.codigo}/abrir`, { method: 'POST' });
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+        salaActual = datos.sala;
+    } catch(e) {
+        // Fallback local
+        salaActual.estado    = 'abierta';
+        salaActual.abierta_en = new Date().toISOString();
+    }
+    renderPanelSala();
 }
 
+async function cerrarSala() {
+    try {
+        const res = await fetch(`/api/salas/${salaActual.codigo}/cerrar`, { method: 'POST' });
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+        salaActual = datos.sala;
+    } catch(e) {
+        salaActual.estado = 'cerrada';
+    }
+    renderPanelSala();
+}
+
+/* ─────────────────────────────────────────
+   APODO Y JUEGO EN SALA
+───────────────────────────────────────── */
+function pedirApodoYJugar() {
+    cambiarPantalla('scr-apodo');
+    if (apodoJugador) document.getElementById('input-apodo').value = apodoJugador;
+}
+
+async function confirmarApodo() {
+    const ap = document.getElementById('input-apodo').value.trim();
+    if (!ap) { alert('Poné un apodo para jugar.'); return; }
+    apodoJugador = ap;
+    localStorage.setItem('golazo_apodo', ap);
+    await iniciarTriviaSala();
+}
+
+async function iniciarTriviaSala() {
+    cambiarPantalla('scr-loading');
+    document.getElementById('loading-msg').textContent = `Cargando trivia para: ${salaActual.labelPartido || 'el partido'}...`;
+
+    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
+    document.getElementById('local-score').textContent = '0 pts';
+    document.getElementById('demo-banner').style.display = 'none';
+
+    try {
+        const res = await fetch(`/api/trivias?id_partido=${encodeURIComponent(salaActual.idPartido || salaActual.id_partido)}`);
+        const datos = await res.json();
+        if (datos.error || !datos.preguntas?.length) throw new Error('Sin preguntas');
+        preguntasPartida = datos.preguntas;
+    } catch(e) {
+        // Fallback demo
+        preguntasPartida = BANCO_DEMO;
+    }
+
+    cambiarPantalla('scr-quiz');
+    renderizarPregunta();
+}
+
+/* ─────────────────────────────────────────
+   QUIZ CON TIMER
+───────────────────────────────────────── */
 function renderizarPregunta() {
     document.getElementById('box-feedback').className = 'feedback';
     document.getElementById('box-feedback').style.display = 'none';
@@ -606,24 +1048,86 @@ function renderizarPregunta() {
         const btn = document.createElement('button');
         btn.className = 'btn-option';
         btn.textContent = op;
-        btn.onclick = () => verificarRespuesta(op);
+        btn.onclick = () => {
+            audioCtx.resume();
+            verificarRespuesta(op);
+        };
         cont.appendChild(btn);
     });
+
+    iniciarTimer();
 }
 
-/* MODIFICADO: VALIDA SI ESTÁ OK O NO Y COLOREA (VERDE O ROJO) + CONTABILIZA TOTALES */
-function verificarRespuesta(opcion) {
-    const todosLosBotones = document.querySelectorAll('.btn-option');
-    
-    todosLosBotones.forEach(b => {
+function iniciarTimer() {
+    detenerTimer();
+    tiempoRestante = 30;
+    actualizarTimerUI();
+
+    timerInterval = setInterval(() => {
+        tiempoRestante--;
+        actualizarTimerUI();
+        if (tiempoRestante <= 0) {
+            detenerTimer();
+            tiempoAgotado();
+        }
+    }, 1000);
+}
+
+function actualizarTimerUI() {
+    const pct = (tiempoRestante / 30) * 100;
+    const bar = document.getElementById('timer-bar');
+    bar.style.width = pct + '%';
+
+    if (tiempoRestante <= 5) {
+        bar.className = 'timer-bar timer-danger';
+    } else if (tiempoRestante <= 12) {
+        bar.className = 'timer-bar timer-warning';
+    } else {
+        bar.className = 'timer-bar';
+    }
+
+    document.getElementById('timer-countdown').textContent = `⏱ ${tiempoRestante}s`;
+}
+
+function detenerTimer() {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+
+function tiempoAgotado() {
+    playBeep('timeout');
+
+    const botones = document.querySelectorAll('.btn-option');
+    botones.forEach(b => {
         b.disabled = true;
-        // Pinta de verde la correcta de fondo
         if (b.textContent === preguntaActualObj.correcta) {
             b.style.backgroundColor = 'var(--success)';
             b.style.borderColor = 'var(--success)';
             b.style.color = 'white';
         }
-        // Si el usuario eligió esta opción y está mal, la pinta de rojo
+    });
+
+    const fb = document.getElementById('box-feedback');
+    fb.textContent = `⏰ ¡Tiempo! La respuesta era: ${preguntaActualObj.correcta}`;
+    fb.className = 'feedback timeout';
+    contadorError++;
+
+    const esUltima = (indicePregunta === preguntasPartida.length - 1);
+    const btnNext  = document.getElementById('btn-next-action');
+    btnNext.textContent = esUltima ? 'Ver resultados 🏁' : 'Siguiente ➡️';
+    btnNext.style.display = 'block';
+}
+
+function verificarRespuesta(opcion) {
+    detenerTimer();
+
+    const botones = document.querySelectorAll('.btn-option');
+    botones.forEach(b => {
+        b.disabled = true;
+        if (b.textContent === preguntaActualObj.correcta) {
+            b.style.backgroundColor = 'var(--success)';
+            b.style.borderColor = 'var(--success)';
+            b.style.color = 'white';
+        }
         if (b.textContent === opcion && opcion !== preguntaActualObj.correcta) {
             b.style.backgroundColor = 'var(--error)';
             b.style.borderColor = 'var(--error)';
@@ -634,87 +1138,131 @@ function verificarRespuesta(opcion) {
     const fb = document.getElementById('box-feedback');
 
     if (opcion === preguntaActualObj.correcta) {
-        fb.textContent = '&#161;Correcto! &#128640;';
-        fb.className   = 'feedback correct';
-        puntos += 10;
-        contadorOK++; // Suma un OK
-        document.getElementById('local-score').textContent = `${puntos} pts`;
+        playBeep('ok');
+        // Bonus por rapidez: más puntos cuanto más rápido responde
+        const bonus = Math.max(0, tiempoRestante);
+        const gained = 10 + bonus;
+        puntos += gained;
+        contadorOK++;
+        fb.textContent = `✅ ¡Correcto! +${gained} pts (${tiempoRestante}s restantes)`;
+        fb.className = 'feedback correct';
     } else {
-        fb.textContent = `Incorrecto. La respuesta era: ${preguntaActualObj.correcta}`;
-        fb.className   = 'feedback incorrect';
-        contadorError++; // Suma un Error
+        playBeep('error');
+        contadorError++;
+        fb.textContent = `❌ Incorrecto. La respuesta era: ${preguntaActualObj.correcta}`;
+        fb.className = 'feedback incorrect';
     }
+
+    document.getElementById('local-score').textContent = `${puntos} pts`;
 
     const esUltima = (indicePregunta === preguntasPartida.length - 1);
     const btnNext  = document.getElementById('btn-next-action');
-    // CORREGIDO EL STRING DE LA FLECHA ACÁ TAMBIÉN
     btnNext.textContent = esUltima ? 'Ver resultados 🏁' : 'Siguiente ➡️';
     btnNext.style.display = 'block';
 }
 
-/* MODIFICADO: IMPRIME EN PANTALLA LOS TOTALES DE OK/ERROR AL FINAL */
-function avanzarPregunta() {
+async function avanzarPregunta() {
     indicePregunta++;
     if (indicePregunta < preguntasPartida.length) {
         renderizarPregunta();
     } else {
-        document.getElementById('box-final-score').textContent = `${puntos} pts`;
-        
-        // Renderizamos los resultados detallados guardados en la jugada
-        document.getElementById('box-totales-jugada').innerHTML = `
-            <div style="display: flex; justify-content: space-around; font-size: 1.1rem; font-weight: bold; margin-top: 5px;">
-                <span style="color: var(--success);">Correctas (OK): ${contadorOK}</span>
-                <span style="color: var(--error);">Errores: ${contadorError}</span>
-            </div>
-        `;
-
-        document.getElementById('result-liga').textContent =
-            ligaSeleccionada
-                ? `${ligaSeleccionada.flag} ${ligaSeleccionada.nombre} &#183; ${partidoSeleccionado ? partidoSeleccionado.label : ''}`
-                : '';
-        cambiarPantalla('scr-results');
+        detenerTimer();
+        // Guardar resultado si estamos en sala
+        if (salaActual && apodoJugador) {
+            await guardarResultadoSala();
+        }
+        mostrarResultados();
     }
 }
 
-async function iniciarTrivia() {
-    cambiarPantalla('scr-loading');
-    puntos         = 0;
-    indicePregunta = 0;
-    contadorOK     = 0; // REINICIA CONTADORES AL INICIAR UNA NUEVA PARTIDA
-    contadorError  = 0; 
-    document.getElementById('local-score').textContent = '0 pts';
-
-    const idPartido = partidoSeleccionado ? partidoSeleccionado.id_partido : '';
-    const labelPartido = partidoSeleccionado ? partidoSeleccionado.label : '';
-    document.getElementById('loading-msg').textContent = `Generando trivia para: ${labelPartido}...`;
-
-    const urlEndpoint = `/api/trivias?id_partido=${encodeURIComponent(idPartido)}`;
-
+async function guardarResultadoSala() {
     try {
-        const res = await fetch(urlEndpoint);
-        if (!res.ok) throw new Error('Error de conexión con el servidor.');
-        
-        const datos = await res.json();
-        if (datos.error) throw new Error(datos.error);
-        
-        if (datos.preguntas && datos.preguntas.length > 0) {
-            preguntasPartida = datos.preguntas;
-            cambiarPantalla('scr-quiz');
-            renderizarPregunta();
-        } else {
-            throw new Error('El servidor no devolvió preguntas válidas para este partido.');
-        }
+        await fetch(`/api/salas/${salaActual.codigo}/resultado`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apodo: apodoJugador, puntos, correctas: contadorOK, errores: contadorError }),
+        });
+    } catch(e) { console.warn('No se pudo guardar resultado:', e); }
+}
 
-    } catch (err) {
-        console.error('Error al armar la trivia:', err);
-        alert(`No se pudo armar la trivia para este partido.\nMotivo: ${err.message}`);
+function mostrarResultados() {
+    document.getElementById('box-final-score').textContent = `${puntos} pts`;
+    document.getElementById('box-totales-jugada').innerHTML = `
+        <div style="display:flex;justify-content:space-around;font-size:1.1rem;font-weight:bold;margin-top:5px;">
+            <span style="color:var(--success);">✅ Correctas: ${contadorOK}</span>
+            <span style="color:var(--error);">❌ Errores: ${contadorError}</span>
+        </div>
+        ${apodoJugador ? `<div style="margin-top:8px;color:var(--text-muted);font-size:0.85rem;">Jugador: ${apodoJugador}</div>` : ''}
+    `;
+    document.getElementById('result-liga').textContent =
+        salaActual ? `🏟️ ${salaActual.nombre}` : '🎮 Modo demo';
+
+    document.getElementById('btn-volver-sala').style.display = salaActual ? 'block' : 'none';
+    document.getElementById('btn-volver-menu').style.display = salaActual ? 'none' : 'block';
+
+    cambiarPantalla('scr-results');
+}
+
+function volverASalaPostJuego() {
+    if (salaActual) {
+        renderPanelSala();
+        cambiarPantalla('scr-sala');
+    } else {
         volverAlMenu();
     }
 }
-/* ──────────────────────────────────────────
-   INIT
-────────────────────────────────────────── */
-cargarLigas();
+
+/* ─────────────────────────────────────────
+   RANKING
+───────────────────────────────────────── */
+async function verRanking() {
+    cambiarPantalla('scr-loading');
+    document.getElementById('loading-msg').textContent = 'Cargando ranking...';
+
+    try {
+        const res = await fetch(`/api/salas/${salaActual.codigo}/ranking`);
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+        mostrarRanking(datos.ranking);
+    } catch(e) {
+        mostrarRanking([]);
+    }
+}
+
+function mostrarRanking(lista) {
+    document.getElementById('ranking-sala-nombre').textContent = salaActual?.nombre || '';
+    const tbody = document.getElementById('ranking-tbody');
+    tbody.innerHTML = '';
+
+    if (!lista.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:20px;">Aún no hay jugadas registradas</td></tr>';
+    } else {
+        lista.forEach((j, i) => {
+            const pos = i + 1;
+            const cls = pos === 1 ? 'rank-1' : pos === 2 ? 'rank-2' : pos === 3 ? 'rank-3' : '';
+            tbody.innerHTML += `
+                <tr>
+                    <td class="rank-pos ${cls}">${pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos}</td>
+                    <td>${j.apodo}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--success);">${j.puntos}</td>
+                    <td style="text-align:right;color:var(--success);">${j.correctas}</td>
+                    <td style="text-align:right;color:var(--error);">${j.errores}</td>
+                </tr>`;
+        });
+    }
+    cambiarPantalla('scr-ranking');
+}
+
+/* ─────────────────────────────────────────
+   INIT — detectar ?sala=CODIGO en URL
+───────────────────────────────────────── */
+(function init() {
+    const params = new URLSearchParams(window.location.search);
+    const salaCodigo = params.get('sala');
+    if (salaCodigo) {
+        cargarSalaPorCodigo(salaCodigo.toUpperCase());
+    }
+})();
 </script>
 </body>
 </html>
