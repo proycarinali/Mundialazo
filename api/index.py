@@ -37,7 +37,7 @@ MP_PRECIO_SALA  = float(os.environ.get("MP_PRECIO_SALA", "1500"))  # ARS
 
 # URLs que MP usa para redirigir al usuario tras el pago
 # Cambiá esto por tu dominio real en Railway
-APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://tu-app.railway.app")
+APP_BASE_URL = os.environ.get("APP_BASE_URL", "https://mundialazo-production.up.railway.app/")
 
 
 def conectar():
