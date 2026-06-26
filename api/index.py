@@ -61,7 +61,7 @@ CORS(app)
 def obtener_preguntas_partido(id_partido, conn):
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT p.id_pregunta, p.nro_pregunta, p.pregunta,
+        SELECT top 10 p.id_pregunta, p.nro_pregunta, p.pregunta,
                r.id_respuesta, r.letra, r.texto_opcion, r.es_correcta
         FROM preguntas_partido p
         JOIN respuestas_preguntas r ON r.id_pregunta = p.id_pregunta
@@ -94,7 +94,7 @@ def get_ligas_disponibles(conn):
     cursor.execute("""
         SELECT p.liga_nombre, COUNT(DISTINCT p.id_partido) as total
         FROM partidos p
-        INNER JOIN preguntas_partido pp ON pp.id_partido = p.id_partido
+        INNER JOIN _partido pp ON pp.id_partido = p.id_partido
         WHERE p.liga_nombre IS NOT NULL
           and UPPER(p.liga_nombre) like '%DIAL%'
         GROUP BY p.liga_nombre
@@ -113,7 +113,7 @@ def get_partidos_por_liga(liga_nombre, limite, conn):
                p.equipo_visitante_nombre, p.equipo_visitante_goles,
                p.ganador, p.tanda_penales
         FROM partidos p
-        INNER JOIN preguntas_partido pp ON pp.id_partido = p.id_partido
+        INNER JOIN _partido pp ON pp.id_partido = p.id_partido
         WHERE p.liga_nombre ILIKE %s
         ORDER BY p.fecha_partido DESC
         LIMIT %s;
@@ -214,26 +214,26 @@ def api_trivias():
 
     try:
         conn  = conectar()
-        filas = obtener_preguntas_partido(id_partido, conn)
+        filas = obtener__partido(id_partido, conn)
         conn.close()
 
         if not filas:
-            return jsonify({"error": "No hay preguntas cargadas para este partido"}), 404
+            return jsonify({"error": "No hay  cargadas para este partido"}), 404
 
-        preguntas = []
+         = []
         for item in filas:
             opciones = [op["texto"] for op in item["opciones"]]
             correcta = next(
                 (op["texto"] for op in item["opciones"] if op["es_correcta"]),
                 opciones[0] if opciones else ""
             )
-            preguntas.append({
+            .append({
                 "pregunta": item["pregunta"],
                 "opciones": opciones,
                 "correcta": correcta,
             })
 
-        return jsonify({"preguntas": preguntas})
+        return jsonify({"": })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
