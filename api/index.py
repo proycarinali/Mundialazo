@@ -96,6 +96,7 @@ def get_ligas_disponibles(conn):
         FROM partidos p
         INNER JOIN preguntas_partido pp ON pp.id_partido = p.id_partido
         WHERE p.liga_nombre IS NOT NULL
+          and UPPER(p.liga_nombre) like '%DIAL%'
         GROUP BY p.liga_nombre
         ORDER BY total DESC;
     """)
