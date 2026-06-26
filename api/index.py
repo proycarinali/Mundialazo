@@ -112,6 +112,7 @@ def get_partidos_por_liga(liga_nombre, limite, conn):
                p.equipo_visitante_nombre, p.equipo_visitante_goles,
                p.ganador, p.tanda_penales
         FROM partidos p
+        join  preguntas_partido pp on pp.id_partido=p.id_partido
         WHERE p.liga_nombre ILIKE %s
         ORDER BY p.fecha_partido DESC
         LIMIT %s;
