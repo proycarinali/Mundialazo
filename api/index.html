@@ -776,18 +776,34 @@ async function iniciarPagoML() {
 
     // Generar código único para la sala
     const codigo = 'GOLAZO-' + Math.random().toString(36).substring(2,8).toUpperCase();
-
     salaPendiente = { nombre, idPartido, labelPartido, maxJugadores: maxJug, codigo };
 
-    // Redirigir a Mercado Libre (URL de preferencia real, acá usamos la de checkout)
-    const mlURL = `https://www.mercadopago.com.ar/checkout/v1/redirect?pref_id=GOLAZO_SALA_${codigo}`;
-    // En producción reemplazás pref_id con el ID real generado por tu backend de ML
-    document.getElementById('link-ml-manual').href = mlURL;
-    document.getElementById('pago-msg').textContent = `Redirigiendo para pagar la sala "${nombre}"...`;
     cambiarPantalla('scr-pago');
+    document.getElementById('pago-msg').textContent = `Preparando pago para la sala "${nombre}"...`;
 
-    // Abrir en nueva pestaña
-    setTimeout(() => { window.open(mlURL, '_blank'); }, 800);
+    try {
+        // Pedimos al backend que cree la preferencia en Mercado Pago
+        const res = await fetch('/api/pagos/crear-preferencia', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(salaPendiente),
+        });
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+
+        // Usamos sandbox_init_point para pruebas, init_point para producción
+        const mlURL = datos.sandbox_init_point || datos.init_point;
+        document.getElementById('link-ml-manual').href = mlURL;
+        document.getElementById('pago-msg').textContent = `Abriendo Mercado Pago para la sala "${nombre}"...`;
+
+        // Abrir checkout de MP en nueva pestaña
+        setTimeout(() => { window.open(mlURL, '_blank'); }, 800);
+
+    } catch(e) {
+        console.error('Error al crear preferencia MP:', e);
+        document.getElementById('pago-msg').textContent = `Error: ${e.message}. Podés intentar de nuevo.`;
+        document.getElementById('link-ml-manual').href = '#';
+    }
 }
 
 async function simularPagoOK() {
@@ -1259,8 +1275,19 @@ function mostrarRanking(lista) {
 (function init() {
     const params = new URLSearchParams(window.location.search);
     const salaCodigo = params.get('sala');
+    const pagoOk     = params.get('pago') === 'ok';
+
     if (salaCodigo) {
-        cargarSalaPorCodigo(salaCodigo.toUpperCase());
+        if (pagoOk) {
+            // Venimos del redirect de MP tras pago aprobado — mostrar sala como admin
+            cargarSalaPorCodigo(salaCodigo.toUpperCase()).then(() => {
+                esAdmin = true;
+                // Limpiar URL sin recargar
+                window.history.replaceState({}, '', `/?sala=${salaCodigo}`);
+            });
+        } else {
+            cargarSalaPorCodigo(salaCodigo.toUpperCase());
+        }
     }
 })();
 </script>
