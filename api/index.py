@@ -220,7 +220,6 @@ def api_trivias():
         if not filas:
             return jsonify({"error": "No hay  cargadas para este partido"}), 404
 
-         = []
         for item in filas:
             opciones = [op["texto"] for op in item["opciones"]]
             correcta = next(
