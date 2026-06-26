@@ -66,7 +66,7 @@ def obtener_preguntas_partido(id_partido, conn):
         FROM preguntas_partido p
         JOIN respuestas_preguntas r ON r.id_pregunta = p.id_pregunta
         WHERE p.id_partido = %s
-        ORDER BY p.nro_pregunta, r.letra LIMITE 10;
+        ORDER BY p.nro_pregunta, r.letra LIMIT 10;
     ''', (id_partido,))
     filas = cursor.fetchall()
     cursor.close()
@@ -214,25 +214,26 @@ def api_trivias():
 
     try:
         conn  = conectar()
-        filas = obtener__partido(id_partido, conn)
+        filas = obtener_preguntas_partido(id_partido, conn)
         conn.close()
 
         if not filas:
             return jsonify({"error": "No hay  cargadas para este partido"}), 404
 
+        trivias = []
         for item in filas:
             opciones = [op["texto"] for op in item["opciones"]]
             correcta = next(
                 (op["texto"] for op in item["opciones"] if op["es_correcta"]),
                 opciones[0] if opciones else ""
             )
-            .append({
+            trivias.append({
                 "pregunta": item["pregunta"],
                 "opciones": opciones,
                 "correcta": correcta,
             })
 
-        return jsonify({"": })
+        return jsonify({"trivias": trivias})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
