@@ -61,12 +61,17 @@ CORS(app)
 def obtener_preguntas_partido(id_partido, conn):
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT  p.id_pregunta, p.nro_pregunta, p.pregunta,
+            SELECT p.id_pregunta, p.nro_pregunta, p.pregunta,
                r.id_respuesta, r.letra, r.texto_opcion, r.es_correcta
-        FROM preguntas_partido p
+        FROM (
+            SELECT id_pregunta, nro_pregunta, pregunta 
+            FROM preguntas_partido 
+            WHERE id_partido = %s 
+            ORDER BY nro_pregunta 
+            LIMIT 10
+        ) p
         JOIN respuestas_preguntas r ON r.id_pregunta = p.id_pregunta
-        WHERE p.id_partido = %s
-        ORDER BY p.nro_pregunta, r.letra LIMIT 10;
+        ORDER BY p.nro_pregunta, r.letra;
     ''', (id_partido,))
     filas = cursor.fetchall()
     cursor.close()
