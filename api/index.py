@@ -237,7 +237,7 @@ def api_trivias():
                 "correcta": correcta,
             })
 
-        return jsonify({"trivias": trivias})
+        return jsonify({"preguntas": trivias})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
