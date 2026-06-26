@@ -94,7 +94,6 @@ def get_ligas_disponibles(conn):
     cursor.execute("""
         SELECT p.liga_nombre, COUNT(DISTINCT p.id_partido) as total
         FROM partidos p
-        INNER JOIN partido pp ON pp.id_partido = p.id_partido
         WHERE p.liga_nombre IS NOT NULL
           and UPPER(p.liga_nombre) like '%DIAL%'
         GROUP BY p.liga_nombre
