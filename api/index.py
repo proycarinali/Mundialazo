@@ -33,7 +33,7 @@ DB_PORT = "6543"
 # CONFIG MERCADO PAGO
 # ─────────────────────────────────────────────────────
 MP_ACCESS_TOKEN = os.environ.get("MP_ACCESS_TOKEN", "")   # Tu Access Token de MP
-MP_PRECIO_SALA  = float(os.environ.get("MP_PRECIO_SALA", "1500"))  # ARS
+MP_PRECIO_SALA  = float(os.environ.get("MP_PRECIO_SALA", "6000"))  # ARS
 
 # URLs que MP usa para redirigir al usuario tras el pago
 # Cambiá esto por tu dominio real en Railway
@@ -194,7 +194,7 @@ def api_ligas():
 @app.route("/api/partidos")
 def api_partidos():
     liga_nombre = request.args.get("liga_nombre", "").strip()
-    limite      = int(request.args.get("limit", 3))
+    limite      = int(request.args.get("limit", 10))
 
     if not liga_nombre:
         return jsonify({"error": "Falta el parámetro liga_nombre"}), 400
