@@ -100,7 +100,6 @@ def get_ligas_disponibles(conn):
         SELECT p.liga_nombre, COUNT(DISTINCT p.id_partido) as total
         FROM partidos p
         WHERE p.liga_nombre IS NOT NULL
-          and UPPER(p.liga_nombre) like '%DIAL%'
         GROUP BY p.liga_nombre
         ORDER BY total DESC;
     """)
