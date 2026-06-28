@@ -555,6 +555,12 @@
             🎮 Modo demo — jugás solo, sin sala. <a href="#" onclick="irACrearSala();return false;" style="color:var(--gold);">Crear sala →</a>
         </div>
 
+        <!-- Info de sala activa -->
+        <div id="quiz-sala-info" style="display:none;background:rgba(37,99,235,0.10);border:1px solid rgba(37,99,235,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px;text-align:left;font-size:0.78rem;line-height:1.6;">
+            <span id="quiz-sala-nombre" style="font-weight:700;color:#fff;"></span><br>
+            <span id="quiz-sala-partido" style="color:#93c5fd;"></span>
+        </div>
+
         <div class="scoreboard">
             <span id="quiz-progress">Pregunta: 0/0</span>
             <span id="local-score" style="color:var(--success);font-weight:bold;">0 pts</span>
@@ -730,6 +736,7 @@ async function cargarPartidosMundialParaSala() {
                 opt.value = p.id_partido;
                 opt.textContent = `${p.label} (${p.fecha})${p.liga ? ' (' + p.liga + ')' : ''}`;
                 opt.dataset.label = p.label;
+                opt.dataset.liga  = p.liga || '';
                 sel.appendChild(opt);
             });
         } else {
@@ -753,6 +760,7 @@ async function iniciarPagoML() {
     const selOpt    = document.getElementById('select-partido-sala');
     const labelPartido = selOpt.options[selOpt.selectedIndex]?.dataset?.label
                        || selOpt.options[selOpt.selectedIndex]?.textContent || '';
+    const ligaPartido  = selOpt.options[selOpt.selectedIndex]?.dataset?.liga || '';
     const maxJug    = 12;
 
     if (!nombre)     { alert('Ingresá un nombre para la sala.'); return; }
@@ -760,7 +768,7 @@ async function iniciarPagoML() {
 
     // Generar código único para la sala
     const codigo = 'GOLAZO-' + Math.random().toString(36).substring(2,8).toUpperCase();
-    salaPendiente = { nombre, idPartido, labelPartido, maxJugadores: maxJug, codigo };
+    salaPendiente = { nombre, idPartido, labelPartido, ligaPartido, maxJugadores: maxJug, codigo };
 
     cambiarPantalla('scr-pago');
     document.getElementById('pago-msg').textContent = `Preparando pago para la sala "${nombre}"...`;
@@ -984,6 +992,19 @@ async function iniciarTriviaSala() {
     }
 
     cambiarPantalla('scr-quiz');
+
+    // Mostrar info de sala
+    const infoEl = document.getElementById('quiz-sala-info');
+    if (salaActual) {
+        document.getElementById('quiz-sala-nombre').textContent = `🏟️ ${salaActual.nombre}`;
+        const liga = salaActual.liga || '';
+        const partido = salaActual.labelPartido || salaActual.id_partido || '';
+        document.getElementById('quiz-sala-partido').textContent = partido + (liga ? ` · ${liga}` : '');
+        infoEl.style.display = 'block';
+    } else {
+        infoEl.style.display = 'none';
+    }
+
     renderizarPregunta();
 }
 
