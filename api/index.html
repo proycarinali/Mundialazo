@@ -437,30 +437,14 @@
             </select>
         </div>
 
-        <div class="form-group">
-            <label>Cantidad de jugadores (máx. 12)</label>
-            <select id="select-jugadores">
-                <option value="2">2 jugadores</option>
-                <option value="3">3 jugadores</option>
-                <option value="4">4 jugadores</option>
-                <option value="5">5 jugadores</option>
-                <option value="6" selected>6 jugadores</option>
-                <option value="7">7 jugadores</option>
-                <option value="8">8 jugadores</option>
-                <option value="9">9 jugadores</option>
-                <option value="10">10 jugadores</option>
-                <option value="11">11 jugadores</option>
-                <option value="12">12 jugadores</option>
-            </select>
-        </div>
-
         <div class="ml-box">
             <div style="font-size:0.9rem;color:var(--text-muted);">Para activar tu sala</div>
             <div class="ml-price">$1.500 ARS</div>
-            <div class="ml-detail">Pago único • La sala dura 1 hora activa • Máx. 12 jugadores</div>
+            <div class="ml-detail">Pago único • La sala dura 2 horas activa • Máx. 12 jugadores</div>
         </div>
 
         <button class="btn btn-warning" onclick="iniciarPagoML()">💳 Pagar con Mercado Libre</button>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:10px;">⚠️ Máximo 12 personas por sala · La sala se activa automáticamente al confirmar el pago y queda abierta por 2 horas desde la creación.</p>
         <button class="btn-secondary" onclick="cambiarPantalla('scr-menu')">Cancelar</button>
     </div>
 
@@ -744,7 +728,7 @@ async function cargarPartidosMundialParaSala() {
             datos.partidos.forEach(p => {
                 const opt = document.createElement('option');
                 opt.value = p.id_partido;
-                opt.textContent = `${p.label} (${p.fecha})`;
+                opt.textContent = `${p.label} (${p.fecha})${p.liga ? ' (' + p.liga + ')' : ''}`;
                 opt.dataset.label = p.label;
                 sel.appendChild(opt);
             });
@@ -769,7 +753,7 @@ async function iniciarPagoML() {
     const selOpt    = document.getElementById('select-partido-sala');
     const labelPartido = selOpt.options[selOpt.selectedIndex]?.dataset?.label
                        || selOpt.options[selOpt.selectedIndex]?.textContent || '';
-    const maxJug    = parseInt(document.getElementById('select-jugadores').value);
+    const maxJug    = 12;
 
     if (!nombre)     { alert('Ingresá un nombre para la sala.'); return; }
     if (!idPartido)  { alert('Seleccioná un partido del Mundial.'); return; }
@@ -907,18 +891,18 @@ function renderPanelSala() {
     document.getElementById('sala-panel-partido').textContent   = salaActual.labelPartido || salaActual.id_partido || '—';
     document.getElementById('sala-panel-jugadores').textContent = `Máx. ${salaActual.maxJugadores || 12}`;
 
-    // Tiempo restante
+    // Tiempo restante (2 horas desde creación)
     let tiempoTxt = '—';
-    if (abierta && salaActual.abierta_en) {
-        const abiertaTs = new Date(salaActual.abierta_en).getTime();
-        const cierre    = abiertaTs + 60 * 60 * 1000; // 1 hora
-        const restMs    = cierre - Date.now();
+    if (salaActual.creada_en) {
+        const creadaTs = new Date(salaActual.creada_en).getTime();
+        const cierre   = creadaTs + 2 * 60 * 60 * 1000; // 2 horas
+        const restMs   = cierre - Date.now();
         if (restMs > 0) {
             const min = Math.floor(restMs / 60000);
             const sec = Math.floor((restMs % 60000) / 1000);
             tiempoTxt = `${min}m ${sec}s`;
         } else {
-            tiempoTxt = 'Cerrando...';
+            tiempoTxt = 'Vencida';
         }
     }
     document.getElementById('sala-panel-tiempo').textContent = tiempoTxt;
@@ -926,22 +910,6 @@ function renderPanelSala() {
     // Botones dinámicos
     const botonesEl = document.getElementById('sala-panel-botones');
     botonesEl.innerHTML = '';
-
-    if (esAdmin) {
-        if (!abierta) {
-            const btnAbrir = document.createElement('button');
-            btnAbrir.className = 'btn btn-success';
-            btnAbrir.textContent = '🟢 Abrir sala';
-            btnAbrir.onclick = () => abrirSala();
-            botonesEl.appendChild(btnAbrir);
-        } else {
-            const btnCerrar = document.createElement('button');
-            btnCerrar.className = 'btn btn-danger';
-            btnCerrar.textContent = '🔴 Cerrar sala';
-            btnCerrar.onclick = () => cerrarSala();
-            botonesEl.appendChild(btnCerrar);
-        }
-    }
 
     if (abierta) {
         const btnJugar = document.createElement('button');
@@ -952,13 +920,13 @@ function renderPanelSala() {
 
         const btnRanking = document.createElement('button');
         btnRanking.className = 'btn-secondary';
-        btnRanking.textContent = '🏅 Ver ranking (disponible al cerrar sala)';
-        btnRanking.disabled = true;
+        btnRanking.textContent = '🏅 Ver ranking';
+        btnRanking.onclick = () => verRanking();
         botonesEl.appendChild(btnRanking);
     } else {
         const btnJugar = document.createElement('button');
         btnJugar.className = 'btn-secondary';
-        btnJugar.textContent = '⚽ Jugar (la sala debe estar abierta)';
+        btnJugar.textContent = '⚽ Jugar (la sala ya no está activa)';
         btnJugar.disabled = true;
         botonesEl.appendChild(btnJugar);
 
@@ -979,32 +947,6 @@ function renderPanelSala() {
         navigator.clipboard.writeText(link).then(() => alert('¡Link copiado!'));
     };
     botonesEl.appendChild(btnCompartir);
-}
-
-async function abrirSala() {
-    try {
-        const res = await fetch(`/api/salas/${salaActual.codigo}/abrir`, { method: 'POST' });
-        const datos = await res.json();
-        if (datos.error) throw new Error(datos.error);
-        salaActual = datos.sala;
-    } catch(e) {
-        // Fallback local
-        salaActual.estado    = 'abierta';
-        salaActual.abierta_en = new Date().toISOString();
-    }
-    renderPanelSala();
-}
-
-async function cerrarSala() {
-    try {
-        const res = await fetch(`/api/salas/${salaActual.codigo}/cerrar`, { method: 'POST' });
-        const datos = await res.json();
-        if (datos.error) throw new Error(datos.error);
-        salaActual = datos.sala;
-    } catch(e) {
-        salaActual.estado = 'cerrada';
-    }
-    renderPanelSala();
 }
 
 /* ─────────────────────────────────────────
