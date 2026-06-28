@@ -161,6 +161,7 @@ def sala_a_dict(row):
         "nombre":        row["nombre"],
         "idPartido":     row["id_partido"],
         "labelPartido":  row["label_partido"],
+        "liga":          row.get("liga_partido") or "",
         "maxJugadores":  row["max_jugadores"],
         "estado":        row["estado"],
         "abierta_en":    row["abierta_en"].isoformat() if row["abierta_en"] else None,
@@ -254,7 +255,8 @@ def api_crear_sala():
     nombre       = (data.get("nombre") or "").strip()[:40]
     id_partido   = str(data.get("idPartido") or "").strip()
     label_partido= (data.get("labelPartido") or "").strip()[:120]
-    max_jugadores= min(int(data.get("maxJugadores") or 6), 12)
+    liga_partido = (data.get("ligaPartido") or "").strip()[:80]
+    max_jugadores= min(int(data.get("maxJugadores") or 12), 12)
     codigo       = (data.get("codigo") or "").strip().upper()[:20]
 
     if not nombre or not id_partido or not codigo:
@@ -280,6 +282,7 @@ def api_crear_sala():
         if not row:
             return jsonify({"error": "Código de sala duplicado"}), 409
 
+        row["liga_partido"] = liga_partido
         return jsonify({"sala": sala_a_dict(row)}), 201
 
     except Exception as e:
@@ -296,9 +299,12 @@ def api_get_sala(codigo):
 
         cursor.execute("""
             SELECT s.*,
-                   EXISTS(SELECT 1 FROM salas_jugador sj WHERE sj.codigo_sala = s.codigo) AS tiene_jugadas
+                   EXISTS(SELECT 1 FROM salas_jugador sj WHERE sj.codigo_sala = s.codigo) AS tiene_jugadas,
+                   p.liga_nombre AS liga_partido
             FROM salas s
-            WHERE s.codigo = %s;
+            LEFT JOIN partidos p ON p.id_partido = s.id_partido
+            WHERE s.codigo = %s
+            LIMIT 1;
         """, (codigo,))
 
         row = cursor.fetchone()
@@ -542,8 +548,8 @@ def api_webhook_mp():
                 limpiar_salas_viejas(conn)
                 cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                 cursor.execute("""
-                    INSERT INTO salas (codigo, nombre, id_partido, label_partido, max_jugadores, estado, creada_en)
-                    VALUES (%s, %s, %s, %s, %s, 'cerrada', NOW())
+                    INSERT INTO salas (codigo, nombre, id_partido, label_partido, max_jugadores, estado, creada_en, abierta_en)
+                    VALUES (%s, %s, %s, %s, %s, 'abierta', NOW(), NOW())
                     ON CONFLICT (codigo) DO NOTHING;
                 """, (codigo, nombre, id_partido, label_partido, max_jugadores))
                 conn.commit()
