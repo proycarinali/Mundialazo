@@ -25,8 +25,8 @@ import psycopg2.extras
 # ─────────────────────────────────────────────────────
 DB_HOST = "aws-1-us-east-2.pooler.supabase.com"
 DB_NAME = "postgres"
-DB_USER = "postgres.vlndghikrjvxmiibbqbo"
-DB_PASS = "Lif#Cari.Fuk"
+DB_USER =  os.environ.get("BASE_USER","")
+DB_PASS =  os.environ.get("BASE_PASS","")
 DB_PORT = "6543"
 
 # ─────────────────────────────────────────────────────
