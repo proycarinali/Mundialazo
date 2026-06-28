@@ -5,10 +5,8 @@ Expone:
   GET  /api/ligas                         → ligas disponibles en la BD
   GET  /api/partidos?liga_nombre=         → últimos partidos de una liga
   GET  /api/trivias?id_partido=           → preguntas de trivia de un partido
-  POST /api/salas/crear                   → crea sala luego de pago aprobado
-  GET  /api/salas/<codigo>                → info de sala
-  POST /api/salas/<codigo>/abrir          → admin abre la sala
-  POST /api/salas/<codigo>/cerrar         → admin cierra la sala
+  POST /api/salas/crear                   → crea sala (estado abierta, dura 2h) luego de pago aprobado
+  GET  /api/salas/<codigo>                → info de sala (auto-cierra a las 2h)
   POST /api/salas/<codigo>/resultado      → guarda puntuación de un jugador
   GET  /api/salas/<codigo>/ranking        → ranking de jugadores de la sala
 """
@@ -25,8 +23,8 @@ import psycopg2.extras
 # ─────────────────────────────────────────────────────
 DB_HOST = "aws-1-us-east-2.pooler.supabase.com"
 DB_NAME = "postgres"
-DB_USER =  os.environ.get("BASE_USER","")
-DB_PASS =  os.environ.get("BASE_PASS","")
+DB_USER = "postgres.vlndghikrjvxmiibbqbo"
+DB_PASS = "Lif#Cari.Fuk"
 DB_PORT = "6543"
 
 # ─────────────────────────────────────────────────────
@@ -268,8 +266,8 @@ def api_crear_sala():
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         cursor.execute("""
-            INSERT INTO salas (codigo, nombre, id_partido, label_partido, max_jugadores, estado, creada_en)
-            VALUES (%s, %s, %s, %s, %s, 'cerrada', NOW())
+            INSERT INTO salas (codigo, nombre, id_partido, label_partido, max_jugadores, estado, creada_en, abierta_en)
+            VALUES (%s, %s, %s, %s, %s, 'abierta', NOW(), NOW())
             ON CONFLICT (codigo) DO NOTHING
             RETURNING *;
         """, (codigo, nombre, id_partido, label_partido, max_jugadores))
@@ -306,10 +304,10 @@ def api_get_sala(codigo):
         row = cursor.fetchone()
         cursor.close()
 
-        # Auto-cerrar si lleva más de 1 hora abierta
-        if row and row["estado"] == "abierta" and row["abierta_en"]:
-            limite = row["abierta_en"] + timedelta(hours=1)
-            if datetime.now(timezone.utc) > limite.replace(tzinfo=timezone.utc) if limite.tzinfo is None else datetime.now(timezone.utc) > limite:
+        # Auto-cerrar si lleva más de 2 horas desde creación
+        if row and row["estado"] == "abierta" and row["creada_en"]:
+            limite = row["creada_en"] + timedelta(hours=2)
+            if datetime.now(timezone.utc) > (limite.replace(tzinfo=timezone.utc) if limite.tzinfo is None else limite):
                 cur2 = conn.cursor()
                 cur2.execute("UPDATE salas SET estado='cerrada' WHERE codigo=%s", (codigo,))
                 conn.commit()
@@ -323,50 +321,6 @@ def api_get_sala(codigo):
 
         return jsonify({"sala": sala_a_dict(row)})
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/salas/<codigo>/abrir", methods=["POST"])
-def api_abrir_sala(codigo):
-    codigo = codigo.upper()
-    try:
-        conn   = conectar()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("""
-            UPDATE salas SET estado='abierta', abierta_en=NOW()
-            WHERE codigo=%s
-            RETURNING *;
-        """, (codigo,))
-        row = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-        conn.close()
-        if not row:
-            return jsonify({"error": "Sala no encontrada"}), 404
-        return jsonify({"sala": sala_a_dict(row)})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/salas/<codigo>/cerrar", methods=["POST"])
-def api_cerrar_sala(codigo):
-    codigo = codigo.upper()
-    try:
-        conn   = conectar()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("""
-            UPDATE salas SET estado='cerrada'
-            WHERE codigo=%s
-            RETURNING *;
-        """, (codigo,))
-        row = cursor.fetchone()
-        conn.commit()
-        cursor.close()
-        conn.close()
-        if not row:
-            return jsonify({"error": "Sala no encontrada"}), 404
-        return jsonify({"sala": sala_a_dict(row)})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
