@@ -312,7 +312,7 @@ def api_get_sala(codigo):
 
         # Auto-cerrar si lleva más de 2 horas desde creación
         if row and row["estado"] == "abierta" and row["creada_en"]:
-            limite = row["creada_en"] + timedelta(hours=6)
+            limite = row["creada_en"] + timedelta(hours=8)
             if datetime.now(timezone.utc) > (limite.replace(tzinfo=timezone.utc) if limite.tzinfo is None else limite):
                 cur2 = conn.cursor()
                 cur2.execute("UPDATE salas SET estado='cerrada' WHERE codigo=%s", (codigo,))
