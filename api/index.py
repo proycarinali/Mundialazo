@@ -139,6 +139,94 @@ def get_partidos_por_liga(liga_nombre, limite, conn):
 
 
 # ─────────────────────────────────────────────────────
+# HELPERS MUNDIALES (tabla `mundial`)
+# ─────────────────────────────────────────────────────
+
+# Mapa año -> (país sede, bandera emoji). Fuente confiable como fallback
+# cuando el texto de `detalle` no menciona el país explícitamente.
+MUNDIALES_ANIO_PAIS = {
+    1930: ("Uruguay", "🇺🇾"),
+    1934: ("Italia", "🇮🇹"),
+    1938: ("Francia", "🇫🇷"),
+    1950: ("Brasil", "🇧🇷"),
+    1954: ("Suiza", "🇨🇭"),
+    1958: ("Suecia", "🇸🇪"),
+    1962: ("Chile", "🇨🇱"),
+    1966: ("Inglaterra", "🇬🇧"),
+    1970: ("México", "🇲🇽"),
+    1974: ("Alemania", "🇩🇪"),
+    1978: ("Argentina", "🇦🇷"),
+    1982: ("España", "🇪🇸"),
+    1986: ("México", "🇲🇽"),
+    1990: ("Italia", "🇮🇹"),
+    1994: ("Estados Unidos", "🇺🇸"),
+    1998: ("Francia", "🇫🇷"),
+    2002: ("Corea del Sur y Japón", "🇰🇷🇯🇵"),
+    2006: ("Alemania", "🇩🇪"),
+    2010: ("Sudáfrica", "🇿🇦"),
+    2014: ("Brasil", "🇧🇷"),
+    2018: ("Rusia", "🇷🇺"),
+    2022: ("Catar", "🇶🇦"),
+    2026: ("Estados Unidos, México y Canadá", "🇺🇸🇲🇽🇨🇦"),
+}
+
+
+def detectar_pais_bandera(detalle, anio):
+    """
+    Primero intenta resolver el país/bandera por el año del mundial (fuente
+    confiable). Si el año no está mapeado, intenta inferirlo buscando el
+    nombre del país dentro del texto `detalle`.
+    """
+    datos_anio = MUNDIALES_ANIO_PAIS.get(anio)
+    if datos_anio:
+        return datos_anio
+
+    detalle_low = (detalle or "").lower()
+    for pais, bandera in MUNDIALES_ANIO_PAIS.values():
+        pais_simple = pais.split("/")[0].split(" y ")[0].strip().lower()
+        if pais_simple and pais_simple in detalle_low:
+            return (pais, bandera)
+
+    return ("Desconocido", "🏳️")
+
+
+def get_mundiales(conn):
+    """
+    Levanta todos los mundiales de la tabla `mundial` y, para cada uno,
+    busca en `partidos` (por id_mundial) el partido fijo que tiene trivia
+    cargada (mismo criterio que get_partidos_por_liga: join con
+    preguntas_partido para asegurar que haya preguntas).
+    """
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT m.id_mundial, m.detalle, m.anio,
+               (SELECT p.id_partido
+                  FROM partidos p
+                  JOIN preguntas_partido pp ON pp.id_partido = p.id_partido
+                 WHERE p.id_mundial = m.id_mundial
+                 ORDER BY p.id_partido
+                 LIMIT 1) AS id_partido
+        FROM mundial m
+        ORDER BY m.anio;
+    """)
+    filas = cursor.fetchall()
+    cursor.close()
+
+    mundiales = []
+    for (id_mundial, detalle, anio, id_partido) in filas:
+        pais, bandera = detectar_pais_bandera(detalle, anio)
+        mundiales.append({
+            "id_mundial": id_mundial,
+            "detalle":    detalle,
+            "anio":       anio,
+            "pais":       pais,
+            "bandera":    bandera,
+            "id_partido": id_partido,
+        })
+    return mundiales
+
+
+# ─────────────────────────────────────────────────────
 # HELPERS SALAS
 # ─────────────────────────────────────────────────────
 
@@ -203,6 +291,17 @@ def api_partidos():
         partidos = get_partidos_por_liga(liga_nombre, limite, conn)
         conn.close()
         return jsonify({"partidos": partidos})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/mundiales")
+def api_mundiales():
+    try:
+        conn = conectar()
+        mundiales = get_mundiales(conn)
+        conn.close()
+        return jsonify({"mundiales": mundiales})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
