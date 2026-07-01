@@ -379,21 +379,39 @@
 <div class="container">
 
     <!-- ══════════════════════════════════════ -->
-    <!-- PANTALLA: MUNDIALES (histórico + 2026) -->
+    <!-- PANTALLA 0: MENÚ PRINCIPAL            -->
     <!-- ══════════════════════════════════════ -->
-    <div id="scr-mundiales" class="screen">
+    <div id="scr-menu" class="screen active">
         <h1>⚽ Golazo IA</h1>
-        <p>Trivia de fútbol en tiempo real. Desafía 
-        <div class="nav-back" onclick="cambiarPantalla('scr-menu')">
-            <span>←</span> Volver al menú
-        </div>
-        <h2>🌍 Mundiales</h2>
-        <p>Elegí una Copa del Mundo para jugar su trivia</p>
+        <p>Trivia de fútbol en tiempo real. Desafía a tus amigos.</p>
 
-        <div class="menu-options" id="mundial-2026-slot"></div>
+        <div class="menu-options">
+            <!-- MODO DEMO GRATUITO -->
+            <div class="menu-card" onclick="iniciarModoDemo()">
+                <div class="mc-icon">🎮</div>
+                <div class="mc-content">
+                    <div class="mc-title">Jugar demo gratuito</div>
+                    <div class="mc-desc">Trivia de muestra — Final del Mundial Qatar 2022</div>
+                </div>
+            </div>
 
-        <div class="menu-options" id="mundiales-list">
-            <p style="text-align:center;">Cargando mundiales...</p>
+            <!-- CREAR SALA PAGA -->
+            <div class="menu-card premium" onclick="irACrearSala()">
+                <div class="mc-icon">🏟️</div>
+                <div class="mc-content">
+                    <div class="mc-title">Crear sala privada <span class="badge-pago">PREMIUM</span></div>
+                    <div class="mc-desc">Elegí un partido del Mundial y jugá con hasta 12 amigos</div>
+                </div>
+            </div>
+
+            <!-- ENTRAR A UNA SALA -->
+            <div class="menu-card" onclick="irAEntrarSala()">
+                <div class="mc-icon">🔗</div>
+                <div class="mc-content">
+                    <div class="mc-title">Entrar a una sala</div>
+                    <div class="mc-desc">Ingresá el código de sala que te compartieron</div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -693,93 +711,6 @@ function iniciarModoDemo() {
     puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
     document.getElementById('local-score').textContent = '0 pts';
     document.getElementById('demo-banner').style.display = 'block';
-    cambiarPantalla('scr-quiz');
-    renderizarPregunta();
-}
-
-/* ─────────────────────────────────────────
-   MUNDIALES (histórico + Mundial 2026 actual)
-───────────────────────────────────────── */
-async function irAMundiales() {
-    cambiarPantalla('scr-mundiales');
-    await cargarListaMundiales();
-}
-
-async function cargarListaMundiales() {
-    const slot2026 = document.getElementById('mundial-2026-slot');
-    const lista    = document.getElementById('mundiales-list');
-
-    // Icono separado del Mundial 2026 -> reutiliza tal cual la pantalla
-    // de "Crear sala privada" ya desarrollada (irACrearSala).
-    slot2026.innerHTML = `
-        <div class="menu-card premium" onclick="irACrearSala()">
-            <div class="mc-icon">🏆</div>
-            <div class="mc-content">
-                <div class="mc-title">Mundial 2026 <span class="badge-pago">EN VIVO</span></div>
-                <div class="mc-desc">Estados Unidos, México y Canadá — Creá tu sala y jugá</div>
-            </div>
-        </div>
-    `;
-
-    lista.innerHTML = '<p style="text-align:center;">Cargando mundiales...</p>';
-    try {
-        const res   = await fetch('/api/mundiales');
-        const datos = await res.json();
-        if (datos.error) throw new Error(datos.error);
-
-        // El Mundial 2026 ya tiene su propio ícono arriba, no se duplica en la lista
-        const historicos = (datos.mundiales || []).filter(m => m.anio != 2026);
-
-        if (!historicos.length) {
-            lista.innerHTML = '<p style="text-align:center;color:var(--text-muted);">No hay más mundiales cargados.</p>';
-            return;
-        }
-
-        lista.innerHTML = '';
-        historicos.forEach(m => {
-            const card = document.createElement('div');
-            card.className = 'menu-card';
-            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle);
-            card.innerHTML = `
-                <div class="mc-icon">${m.bandera || '🌍'}</div>
-                <div class="mc-content">
-                    <div class="mc-title">${m.detalle} (${m.anio})</div>
-                    <div class="mc-desc">${m.pais || ''}</div>
-                </div>
-            `;
-            lista.appendChild(card);
-        });
-    } catch (e) {
-        lista.innerHTML = '<p style="text-align:center;color:var(--error);">No se pudieron cargar los mundiales.</p>';
-    }
-}
-
-async function jugarTriviaMundial(idPartido, detalleMundial) {
-    if (!idPartido) {
-        alert('Este mundial todavía no tiene trivia cargada.');
-        return;
-    }
-
-    modoDemo = true;
-    salaActual = null; esAdmin = false;
-    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
-    document.getElementById('local-score').textContent = '0 pts';
-
-    cambiarPantalla('scr-loading');
-    document.getElementById('loading-msg').textContent = `Cargando trivia de ${detalleMundial}...`;
-
-    // Misma llamada que se usa "por partido" (idéntica a iniciarTriviaSala)
-    try {
-        const res   = await fetch(`/api/trivias?id_partido=${encodeURIComponent(idPartido)}`);
-        const datos = await res.json();
-        if (datos.error || !datos.preguntas?.length) throw new Error('Sin preguntas');
-        preguntasPartida = datos.preguntas;
-    } catch (e) {
-        preguntasPartida = BANCO_DEMO;
-    }
-
-    document.getElementById('demo-banner').style.display = 'block';
-    document.getElementById('quiz-sala-info').style.display = 'none';
     cambiarPantalla('scr-quiz');
     renderizarPregunta();
 }
