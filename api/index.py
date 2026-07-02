@@ -65,7 +65,7 @@ def obtener_preguntas_partido(id_partido, conn):
             SELECT id_pregunta, nro_pregunta, pregunta 
             FROM preguntas_partido 
             WHERE id_partido = %s 
-            ORDER BY nro_pregunta 
+            order by random()
             LIMIT 10
         ) p
         JOIN respuestas_preguntas r ON r.id_pregunta = p.id_pregunta
