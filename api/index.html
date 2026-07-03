@@ -129,7 +129,7 @@
         .menu-card .mc-content { flex: 1; }
         .menu-card .mc-title { font-size: 1rem; font-weight: 700; color: var(--text); }
         .menu-card .mc-desc  { font-size: 0.82rem; color: var(--text-muted); margin-top: 2px; }
-        .badge-pago {
+        .badge-tag {
             font-size: 10px;
             background: var(--gold);
             color: #000;
@@ -366,7 +366,7 @@
             text-align: left;
         }
 
-        /* ML PAGO */
+        /* BADGE ETIQUETA */
         .ml-box {
             background: rgba(37,99,235,0.06);
             border: 1px solid rgba(37,99,235,0.2);
@@ -392,7 +392,7 @@
             <div class="menu-card premium" onclick="irACrearSala()">
                 <div class="mc-icon">🏟️</div>
                 <div class="mc-content">
-                    <div class="mc-title">Crear sala privada <span class="badge-pago">PREMIUM</span></div>
+                    <div class="mc-title">Crear sala privada</div>
                     <div class="mc-desc">Elegí un partido del Mundial y jugá con hasta 12 amigos</div>
                 </div>
             </div>
@@ -457,31 +457,13 @@
         </div>
 
         <div class="ml-box">
-            <div style="font-size:0.9rem;color:var(--text-muted);">Para activar tu sala</div>
-            <div class="ml-price">$6000 ARS</div>
-            <div class="ml-detail">Pago único • La sala dura 8 horas activa • Máx. 12 jugadores</div>
+            <div style="font-size:0.9rem;color:var(--text-muted);">Tu sala</div>
+            <div class="ml-detail">La sala dura 8 horas activa • Máx. 12 jugadores</div>
         </div>
 
-        <button class="btn btn-warning" onclick="iniciarPagoML()">💳 Pagar con Mercado Libre</button>
-        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:10px;">⚠️ Máximo 12 personas por sala · La sala se activa automáticamente al confirmar el pago y queda abierta por 2 horas desde la creación.</p>
+        <button class="btn btn-warning" onclick="crearSalaDirecta()">🏟️ Crear sala</button>
+        <p style="font-size:0.78rem;color:var(--text-muted);margin-top:10px;">⚠️ Máximo 12 personas por sala · La sala queda abierta por 8 horas desde la creación.</p>
         <button class="btn-secondary" onclick="cambiarPantalla('scr-menu')">Cancelar</button>
-    </div>
-
-    <!-- ══════════════════════════════════════ -->
-    <!-- PANTALLA: PAGO EN PROCESO             -->
-    <!-- ══════════════════════════════════════ -->
-    <div id="scr-pago" class="screen">
-        <h2>💳 Redirigiendo a Mercado Libre...</h2>
-        <div class="loader"></div>
-        <p id="pago-msg">Preparando tu pago seguro...</p>
-        <p style="margin-top:16px;font-size:0.8rem;">
-            Si la ventana no se abrió,
-            <a id="link-ml-manual" href="#" target="_blank" style="color:#93c5fd;">hacé clic acá</a>
-        </p>
-        <button class="btn-secondary" style="margin-top:20px;" onclick="simularPagoOK()">
-            ✅ Simular pago aprobado (dev)
-        </button>
-        <button class="btn-secondary" onclick="cambiarPantalla('scr-crear-sala')">← Volver</button>
     </div>
 
     <!-- ══════════════════════════════════════ -->
@@ -689,7 +671,7 @@ let contadorError     = 0;
 let preguntaActualObj = null;
 let timerInterval     = null;
 let tiempoRestante    = 30;
-let salaPendiente     = null;   // sala siendo creada antes del pago
+let salaPendiente     = null;   // datos de la sala en proceso de creación
 
 /* ─────────────────────────────────────────
    BANCO DEMO (Final Qatar 2022)
@@ -752,7 +734,7 @@ async function cargarListaMundiales() {
         <div class="menu-card premium" onclick="irACrearSala()">
             <div class="mc-icon">🏆</div>
             <div class="mc-content">
-                <div class="mc-title">Mundial 2026 <span class="badge-pago">EN VIVO</span></div>
+                <div class="mc-title">Mundial 2026 <span class="badge-tag">EN VIVO</span></div>
                 <div class="mc-desc">Estados Unidos, México y Canadá — Creá tu sala y jugá</div>
             </div>
         </div>
@@ -860,7 +842,7 @@ async function cargarPartidosMundialParaSala() {
     }
 }
 
-async function iniciarPagoML() {
+async function crearSalaDirecta() {
     const nombre    = document.getElementById('input-sala-nombre').value.trim();
     const idPartido = document.getElementById('select-partido-sala').value;
     const selOpt    = document.getElementById('select-partido-sala');
@@ -876,40 +858,8 @@ async function iniciarPagoML() {
     const codigo = 'GOLAZO-' + Math.random().toString(36).substring(2,8).toUpperCase();
     salaPendiente = { nombre, idPartido, labelPartido, ligaPartido, maxJugadores: maxJug, codigo };
 
-    cambiarPantalla('scr-pago');
-    document.getElementById('pago-msg').textContent = `Preparando pago para la sala "${nombre}"...`;
-
-    try {
-        // Pedimos al backend que cree la preferencia en Mercado Pago
-        const res = await fetch('/api/pagos/crear-preferencia', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(salaPendiente),
-        });
-        const datos = await res.json();
-        if (datos.error) throw new Error(datos.error);
-
-        // Usamos sandbox_init_point para pruebas, init_point para producción
-        const mlURL = datos.sandbox_init_point || datos.init_point;
-        document.getElementById('link-ml-manual').href = mlURL;
-        document.getElementById('pago-msg').textContent = `Abriendo Mercado Pago para la sala "${nombre}"...`;
-
-        // Abrir checkout de MP en nueva pestaña
-        setTimeout(() => { window.open(mlURL, '_blank'); }, 800);
-
-    } catch(e) {
-        console.error('Error al crear preferencia MP:', e);
-        document.getElementById('pago-msg').textContent = `Error: ${e.message}. Podés intentar de nuevo.`;
-        document.getElementById('link-ml-manual').href = '#';
-    }
-}
-
-async function simularPagoOK() {
-    // Simula pago aprobado — llama al backend para crear la sala
-    if (!salaPendiente) { alert('No hay sala pendiente.'); return; }
-
     cambiarPantalla('scr-loading');
-    document.getElementById('loading-msg').textContent = 'Creando tu sala...';
+    document.getElementById('loading-msg').textContent = `Creando la sala "${nombre}"...`;
 
     try {
         const res = await fetch('/api/salas/crear', {
@@ -924,6 +874,7 @@ async function simularPagoOK() {
         esAdmin    = true;
         mostrarSalaCreada(datos.sala);
     } catch(e) {
+        console.error('Error al crear la sala:', e);
         // Fallback local si el backend no está
         salaActual = { ...salaPendiente, estado: 'cerrada', admin: true };
         esAdmin    = true;
@@ -1344,19 +1295,9 @@ function mostrarRanking(lista) {
 (function init() {
     const params = new URLSearchParams(window.location.search);
     const salaCodigo = params.get('sala');
-    const pagoOk     = params.get('pago') === 'ok';
 
     if (salaCodigo) {
-        if (pagoOk) {
-            // Venimos del redirect de MP tras pago aprobado — mostrar sala como admin
-            cargarSalaPorCodigo(salaCodigo.toUpperCase()).then(() => {
-                esAdmin = true;
-                // Limpiar URL sin recargar
-                window.history.replaceState({}, '', `/?sala=${salaCodigo}`);
-            });
-        } else {
-            cargarSalaPorCodigo(salaCodigo.toUpperCase());
-        }
+        cargarSalaPorCodigo(salaCodigo.toUpperCase());
     }
 })();
 </script>
