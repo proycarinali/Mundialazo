@@ -70,14 +70,10 @@
             width: 100%;
             margin-top: 12px;
         }
-        .btn:hover { background-color: var(--primary-hover); }
         .btn:disabled { background-color: #4b5563; cursor: not-allowed; }
         .btn-success { background-color: var(--success); }
-        .btn-success:hover { background-color: #059669; }
         .btn-danger { background-color: var(--error); }
-        .btn-danger:hover { background-color: #dc2626; }
         .btn-warning { background-color: var(--warning); color: #000; }
-        .btn-warning:hover { background-color: #d97706; }
 
         .btn-secondary {
             background-color: transparent;
@@ -91,7 +87,6 @@
             margin-top: 10px;
             width: 100%;
         }
-        .btn-secondary:hover { border-color: #fff; color: #fff; }
 
         /* MENÚ PRINCIPAL */
         .menu-options {
@@ -113,17 +108,9 @@
             align-items: center;
             gap: 14px;
         }
-        .menu-card:hover {
-            border-color: var(--primary);
-            background: rgba(37,99,235,0.08);
-            transform: translateY(-1px);
-        }
         .menu-card.premium {
             border-color: var(--gold);
             background: rgba(251,191,36,0.07);
-        }
-        .menu-card.premium:hover {
-            background: rgba(251,191,36,0.14);
         }
         .menu-card .mc-icon { font-size: 2rem; flex-shrink: 0; }
         .menu-card .mc-content { flex: 1; }
@@ -159,11 +146,6 @@
             align-items: center;
             gap: 6px;
         }
-        .league-card:hover {
-            background: var(--option-hover);
-            border-color: var(--primary);
-            transform: translateY(-2px);
-        }
         .league-card .flag { font-size: 28px; }
         .league-card .name { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; }
         .league-card .country { font-size: 10px; color: var(--text-muted); }
@@ -188,7 +170,6 @@
             align-items: center;
             justify-content: space-between;
         }
-        .match-card:hover { background: var(--option-hover); border-color: var(--primary); }
         .match-card.active { border-color: var(--success); background: rgba(16,185,129,0.08); }
         .match-teams { font-size: 14px; font-weight: 600; color: var(--text); }
         .match-score {
@@ -205,7 +186,6 @@
             color: var(--text-muted); font-size: 13px;
             width: fit-content; transition: color 0.2s;
         }
-        .nav-back:hover { color: #fff; }
         .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
         .league-badge {
             font-size: 11px; background: rgba(37,99,235,0.2);
@@ -261,10 +241,6 @@
             cursor: pointer;
             font-size: 0.95rem;
             transition: all 0.2s;
-        }
-        .btn-option:hover:not(:disabled) {
-            background-color: var(--option-hover);
-            border-color: #475569;
         }
 
         .feedback {
@@ -375,6 +351,40 @@
         }
         .ml-price { font-size: 2rem; font-weight: 700; color: var(--gold); margin: 8px 0; }
         .ml-detail { font-size: 0.82rem; color: var(--text-muted); }
+
+        /* ─────────────────────────────────────────
+           HOVER SÓLO EN DISPOSITIVOS CON MOUSE REAL
+           En pantallas táctiles, un elemento con :hover
+           necesita DOS taps para disparar el click (el primero
+           "activa" el hover, el segundo hace el click real).
+           Esto pasa sobre todo en los navegadores in-app de
+           WhatsApp/Instagram. Restringimos el :hover a mouse
+           para que en el celular el primer tap ya funcione.
+        ───────────────────────────────────────── */
+        @media (hover: hover) and (pointer: fine) {
+            .btn:hover { background-color: var(--primary-hover); }
+            .btn-success:hover { background-color: #059669; }
+            .btn-danger:hover { background-color: #dc2626; }
+            .btn-warning:hover { background-color: #d97706; }
+            .btn-secondary:hover { border-color: #fff; color: #fff; }
+            .menu-card:hover {
+                border-color: var(--primary);
+                background: rgba(37,99,235,0.08);
+                transform: translateY(-1px);
+            }
+            .menu-card.premium:hover { background: rgba(251,191,36,0.14); }
+            .league-card:hover {
+                background: var(--option-hover);
+                border-color: var(--primary);
+                transform: translateY(-2px);
+            }
+            .match-card:hover { background: var(--option-hover); border-color: var(--primary); }
+            .nav-back:hover { color: #fff; }
+            .btn-option:hover:not(:disabled) {
+                background-color: var(--option-hover);
+                border-color: #475569;
+            }
+        }
     </style>
 </head>
 <body>
