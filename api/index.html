@@ -556,6 +556,12 @@
             🎮 Modo demo — jugás solo, sin sala. <a href="#" onclick="irACrearSala();return false;" style="color:var(--gold);">Crear sala →</a>
         </div>
 
+        <!-- Info de mundial histórico (bandera + año) -->
+        <div id="mundial-info-banner" class="demo-banner" style="display:none;">
+            <span id="mundial-info-bandera" style="font-size:1.3rem;"></span>
+            <span id="mundial-info-anio" style="font-weight:700;"></span>
+        </div>
+
         <!-- Info de sala activa -->
         <div id="quiz-sala-info" style="display:none;background:rgba(37,99,235,0.10);border:1px solid rgba(37,99,235,0.3);border-radius:8px;padding:8px 12px;margin-bottom:12px;text-align:left;font-size:0.78rem;line-height:1.6;">
             <span id="quiz-sala-nombre" style="font-weight:700;color:#fff;"></span><br>
@@ -712,6 +718,7 @@ function iniciarModoDemo() {
     puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
     document.getElementById('local-score').textContent = '0 pts';
     document.getElementById('demo-banner').style.display = 'block';
+    document.getElementById('mundial-info-banner').style.display = 'none';
     cambiarPantalla('scr-quiz');
     renderizarPregunta();
 }
@@ -758,7 +765,7 @@ async function cargarListaMundiales() {
         historicos.forEach(m => {
             const card = document.createElement('div');
             card.className = 'menu-card';
-            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle);
+            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
             card.innerHTML = `
                 <div class="mc-icon">${m.bandera || '🌍'}</div>
                 <div class="mc-content">
@@ -773,7 +780,7 @@ async function cargarListaMundiales() {
     }
 }
 
-async function jugarTriviaMundial(idPartido, detalleMundial) {
+async function jugarTriviaMundial(idPartido, detalleMundial, bandera, anio) {
     if (!idPartido) {
         alert('Este mundial todavía no tiene trivia cargada.');
         return;
@@ -797,8 +804,11 @@ async function jugarTriviaMundial(idPartido, detalleMundial) {
         preguntasPartida = BANCO_DEMO;
     }
 
-    document.getElementById('demo-banner').style.display = 'block';
+    document.getElementById('demo-banner').style.display = 'none';
     document.getElementById('quiz-sala-info').style.display = 'none';
+    document.getElementById('mundial-info-bandera').textContent = bandera || '🌍';
+    document.getElementById('mundial-info-anio').textContent = anio || '';
+    document.getElementById('mundial-info-banner').style.display = 'block';
     cambiarPantalla('scr-quiz');
     renderizarPregunta();
 }
@@ -1037,6 +1047,7 @@ async function iniciarTriviaSala() {
     puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
     document.getElementById('local-score').textContent = '0 pts';
     document.getElementById('demo-banner').style.display = 'none';
+    document.getElementById('mundial-info-banner').style.display = 'none';
 
     try {
         const res = await fetch(`/api/trivias?id_partido=${encodeURIComponent(salaActual.idPartido || salaActual.id_partido)}`);
