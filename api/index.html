@@ -398,21 +398,30 @@
         <p>Trivia de fútbol en tiempo real. Desafía a tus amigos.</p>
 
         <div class="menu-options">
-            <!-- CREAR SALA PAGA -->
-            <div class="menu-card premium" onclick="irACrearSala()">
-                <div class="mc-icon">🏟️</div>
-                <div class="mc-content">
-                    <div class="mc-title">Crear sala privada</div>
-                    <div class="mc-desc">Elegí un partido del Mundial y jugá con hasta 12 amigos</div>
-                </div>
-            </div>
-
             <!-- MUNDIALES (histórico + actual 2026) -->
             <div class="menu-card" onclick="irAMundiales()">
                 <div class="mc-icon">🌍</div>
                 <div class="mc-content">
                     <div class="mc-title">Mundiales</div>
                     <div class="mc-desc">Elegí una Copa del Mundo y jugá su trivia</div>
+                </div>
+            </div>
+
+            <!-- LIGAS (cargadas en la tabla mundial con es_mundial = 0) -->
+            <div class="menu-card" onclick="irALigas()">
+                <div class="mc-icon">⚽</div>
+                <div class="mc-content">
+                    <div class="mc-title">Ligas</div>
+                    <div class="mc-desc">Elegí una liga y jugá su trivia</div>
+                </div>
+            </div>
+
+            <!-- CREAR SALA PAGA -->
+            <div class="menu-card premium" onclick="irACrearSala()">
+                <div class="mc-icon">🏟️</div>
+                <div class="mc-content">
+                    <div class="mc-title">Crear sala privada</div>
+                    <div class="mc-desc">Elegí un partido del Mundial y jugá con hasta 12 amigos</div>
                 </div>
             </div>
 
@@ -442,10 +451,20 @@
         <div class="menu-options" id="mundiales-list">
             <p style="text-align:center;">Cargando mundiales...</p>
         </div>
+    </div>
 
-        <div id="ligas-desde-mundial-wrap" style="display:none; margin-top:1.5rem;">
-            <h3>⚽ Ligas</h3>
-            <div class="menu-options" id="ligas-desde-mundial-list"></div>
+    <!-- ══════════════════════════════════════ -->
+    <!-- PANTALLA: LIGAS (es_mundial = 0)      -->
+    <!-- ══════════════════════════════════════ -->
+    <div id="scr-ligas" class="screen">
+        <div class="nav-back" onclick="cambiarPantalla('scr-menu')">
+            <span>←</span> Volver al menú
+        </div>
+        <h2>⚽ Ligas</h2>
+        <p>Elegí una liga para jugar su trivia</p>
+
+        <div class="menu-options" id="ligas-list">
+            <p style="text-align:center;">Cargando ligas...</p>
         </div>
     </div>
 
@@ -788,64 +807,82 @@ async function cargarListaMundiales() {
         </div>
     `;
 
-    const ligasWrap = document.getElementById('ligas-desde-mundial-wrap');
-    const ligasList = document.getElementById('ligas-desde-mundial-list');
-
     lista.innerHTML = '<p style="text-align:center;">Cargando mundiales...</p>';
-    ligasWrap.style.display = 'none';
     try {
         const res   = await fetch('/api/mundiales');
         const datos = await res.json();
         if (datos.error) throw new Error(datos.error);
 
-        const todos = datos.mundiales || [];
-
-        // Mundiales fijos (es_mundial = 1). El Mundial 2026 ya tiene su propio
+        // Solo mundiales (es_mundial = 1). El Mundial 2026 ya tiene su propio
         // ícono arriba, no se duplica en la lista.
-        const historicos = todos.filter(m => m.es_mundial && m.anio != 2026);
-
-        // Ligas cargadas en la misma tabla (es_mundial = 0), acceso directo
-        // por id_mundial a la trivia correspondiente.
-        const ligas = todos.filter(m => !m.es_mundial);
+        const historicos = (datos.mundiales || []).filter(m => m.es_mundial && m.anio != 2026);
 
         if (!historicos.length) {
             lista.innerHTML = '<p style="text-align:center;color:var(--text-muted);">No hay más mundiales cargados.</p>';
-        } else {
-            lista.innerHTML = '';
-            historicos.forEach(m => {
-                const card = document.createElement('div');
-                card.className = 'menu-card';
-                card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
-                card.innerHTML = `
-                    <div class="mc-icon">${escapeHtml(m.bandera || '🌍')}</div>
-                    <div class="mc-content">
-                        <div class="mc-title">${escapeHtml(m.detalle)} (${escapeHtml(m.anio)})</div>
-                        <div class="mc-desc">${escapeHtml(m.pais || '')}</div>
-                    </div>
-                `;
-                lista.appendChild(card);
-            });
+            return;
         }
 
-        if (ligas.length) {
-            ligasList.innerHTML = '';
-            ligas.forEach(m => {
-                const card = document.createElement('div');
-                card.className = 'menu-card';
-                card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
-                card.innerHTML = `
-                    <div class="mc-icon">${escapeHtml(m.bandera || '⚽')}</div>
-                    <div class="mc-content">
-                        <div class="mc-title">${escapeHtml(m.detalle)}</div>
-                        <div class="mc-desc">${escapeHtml(m.anio ? String(m.anio) : '')}</div>
-                    </div>
-                `;
-                ligasList.appendChild(card);
-            });
-            ligasWrap.style.display = 'block';
-        }
+        lista.innerHTML = '';
+        historicos.forEach(m => {
+            const card = document.createElement('div');
+            card.className = 'menu-card';
+            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
+            card.innerHTML = `
+                <div class="mc-icon">${escapeHtml(m.bandera || '🌍')}</div>
+                <div class="mc-content">
+                    <div class="mc-title">${escapeHtml(m.detalle)} (${escapeHtml(m.anio)})</div>
+                    <div class="mc-desc">${escapeHtml(m.pais || '')}</div>
+                </div>
+            `;
+            lista.appendChild(card);
+        });
     } catch (e) {
         lista.innerHTML = '<p style="text-align:center;color:var(--error);">No se pudieron cargar los mundiales.</p>';
+    }
+}
+
+/* ─────────────────────────────────────────
+   LIGAS (tabla `mundial` con es_mundial = 0)
+───────────────────────────────────────── */
+async function irALigas() {
+    cambiarPantalla('scr-ligas');
+    await cargarListaLigas();
+}
+
+async function cargarListaLigas() {
+    const lista = document.getElementById('ligas-list');
+
+    lista.innerHTML = '<p style="text-align:center;">Cargando ligas...</p>';
+    try {
+        const res   = await fetch('/api/mundiales');
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+
+        // Ligas cargadas en la misma tabla `mundial` (es_mundial = 0), acceso
+        // directo por id_mundial a la trivia correspondiente.
+        const ligas = (datos.mundiales || []).filter(m => !m.es_mundial);
+
+        if (!ligas.length) {
+            lista.innerHTML = '<p style="text-align:center;color:var(--text-muted);">No hay ligas cargadas.</p>';
+            return;
+        }
+
+        lista.innerHTML = '';
+        ligas.forEach(m => {
+            const card = document.createElement('div');
+            card.className = 'menu-card';
+            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
+            card.innerHTML = `
+                <div class="mc-icon">${escapeHtml(m.bandera || '⚽')}</div>
+                <div class="mc-content">
+                    <div class="mc-title">${escapeHtml(m.detalle)}</div>
+                    <div class="mc-desc">${escapeHtml(m.anio ? String(m.anio) : '')}</div>
+                </div>
+            `;
+            lista.appendChild(card);
+        });
+    } catch (e) {
+        lista.innerHTML = '<p style="text-align:center;color:var(--error);">No se pudieron cargar las ligas.</p>';
     }
 }
 
