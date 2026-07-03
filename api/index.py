@@ -4,7 +4,8 @@ Expone:
   GET  /                                  → sirve index.html
   GET  /api/ligas                         → ligas disponibles en la BD
   GET  /api/partidos?liga_nombre=         → últimos partidos de una liga
-  GET  /api/trivias?id_partido=           → preguntas de trivia de un partido
+  GET  /api/trivias?id_partido=           → preguntas de trivia de un partido (SIN la respuesta correcta)
+  POST /api/trivias/verificar             → valida una respuesta contra la BD
   POST /api/salas/crear                   → crea sala (estado abierta, dura 8h)
   GET  /api/salas/<codigo>                → info de sala (auto-cierra a las 2h)
   POST /api/salas/<codigo>/resultado      → guarda puntuación de un jugador
@@ -13,10 +14,17 @@ Expone:
 
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
-import os, uuid
+import os, uuid, logging, secrets
 from datetime import datetime, timezone, timedelta
 import psycopg2
 import psycopg2.extras
+
+try:
+    from flask_limiter import Limiter
+    from flask_limiter.util import get_remote_address
+    LIMITER_DISPONIBLE = True
+except ImportError:
+    LIMITER_DISPONIBLE = False
 
 # ─────────────────────────────────────────────────────
 # CONFIG BD
@@ -35,10 +43,53 @@ def conectar():
     )
 
 # ─────────────────────────────────────────────────────
+# LOGGING (los detalles de errores van al log, NUNCA al cliente)
+# ─────────────────────────────────────────────────────
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("golazo-api")
+
+def error_response(e, status=500, mensaje="Ocurrió un error interno. Intentá de nuevo más tarde."):
+    """Loguea la excepción completa en el servidor y devuelve un mensaje
+    genérico al cliente, para no filtrar detalles internos (esquema de BD,
+    host, etc.) en las respuestas HTTP."""
+    logger.exception(e)
+    return jsonify({"error": mensaje}), status
+
+# ─────────────────────────────────────────────────────
 # APP
 # ─────────────────────────────────────────────────────
 app = Flask(__name__, static_folder=".")
-CORS(app)
+
+# CORS restringido: por defecto sólo permite pedidos desde el propio origen.
+# Configurá la variable de entorno ALLOWED_ORIGINS con una lista separada
+# por comas si necesitás servir el frontend desde otro dominio, ej:
+#   ALLOWED_ORIGINS=https://golazo-ia.com,https://www.golazo-ia.com
+_origenes_env = os.environ.get("ALLOWED_ORIGINS", "").strip()
+if _origenes_env:
+    ORIGENES_PERMITIDOS = [o.strip() for o in _origenes_env.split(",") if o.strip()]
+else:
+    # Sin la variable configurada, no se habilita CORS de terceros: sólo
+    # funcionan los pedidos same-origin (el propio index.html servido por Flask).
+    ORIGENES_PERMITIDOS = []
+
+CORS(app, origins=ORIGENES_PERMITIDOS if ORIGENES_PERMITIDOS else None, supports_credentials=False)
+
+# ─────────────────────────────────────────────────────
+# RATE LIMITING (mitiga fuerza bruta / spam de salas y resultados)
+# Requiere el paquete "flask-limiter" (agregalo a requirements.txt).
+# Si no está instalado, la app sigue funcionando pero sin límites.
+# ─────────────────────────────────────────────────────
+if LIMITER_DISPONIBLE:
+    limiter = Limiter(get_remote_address, app=app, default_limits=["200 per hour"])
+else:
+    class _NoOpLimiter:
+        def limit(self, *a, **k):
+            def deco(f):
+                return f
+            return deco
+    limiter = _NoOpLimiter()
+    logger.warning("flask-limiter no está instalado: la API queda sin rate limiting. "
+                    "Instalá 'flask-limiter' para habilitarlo.")
 
 
 # ─────────────────────────────────────────────────────
@@ -264,13 +315,18 @@ def api_ligas():
         conn.close()
         return jsonify({"ligas": ligas})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @app.route("/api/partidos")
 def api_partidos():
     liga_nombre = request.args.get("liga_nombre", "").strip()
-    limite      = int(request.args.get("limit", 10))
+
+    try:
+        limite = int(request.args.get("limit", 10))
+    except (TypeError, ValueError):
+        return jsonify({"error": "El parámetro limit debe ser numérico"}), 400
+    limite = max(1, min(limite, 100))  # tope razonable
 
     if not liga_nombre:
         return jsonify({"error": "Falta el parámetro liga_nombre"}), 400
@@ -281,7 +337,7 @@ def api_partidos():
         conn.close()
         return jsonify({"partidos": partidos})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @app.route("/api/mundiales")
@@ -292,11 +348,17 @@ def api_mundiales():
         conn.close()
         return jsonify({"mundiales": mundiales})
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @app.route("/api/trivias")
 def api_trivias():
+    """
+    Devuelve las preguntas de un partido SIN la respuesta correcta.
+    El cliente valida cada respuesta contra /api/trivias/verificar,
+    para que la respuesta correcta nunca viaje al navegador antes de
+    que el jugador responda (evita que se pueda ver en las DevTools).
+    """
     id_partido = request.args.get("id_partido", "").strip()
 
     if not id_partido:
@@ -312,21 +374,69 @@ def api_trivias():
 
         trivias = []
         for item in filas:
-            opciones = [op["texto"] for op in item["opciones"]]
-            correcta = next(
-                (op["texto"] for op in item["opciones"] if op["es_correcta"]),
-                opciones[0] if opciones else ""
-            )
             trivias.append({
+                "id_pregunta": item["id_pregunta"],
                 "pregunta": item["pregunta"],
-                "opciones": opciones,
-                "correcta": correcta,
+                "opciones": [
+                    {"id_respuesta": op["id_respuesta"], "texto": op["texto"]}
+                    for op in item["opciones"]
+                ],
             })
 
         return jsonify({"preguntas": trivias})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
+
+
+@app.route("/api/trivias/verificar", methods=["POST"])
+@limiter.limit("120 per minute")
+def api_verificar_respuesta():
+    """
+    Valida la respuesta elegida por el jugador contra la base de datos.
+    Body: { id_pregunta, id_respuesta }  (id_respuesta puede ser null si
+    se agotó el tiempo, en cuyo caso sólo se informa cuál era la correcta).
+    Devuelve: { correcta, id_respuesta_correcta, texto_correcta }
+    """
+    data = request.get_json(silent=True) or {}
+    id_pregunta  = data.get("id_pregunta")
+    id_respuesta = data.get("id_respuesta")
+
+    if id_pregunta is None:
+        return jsonify({"error": "Falta id_pregunta"}), 400
+
+    try:
+        conn = conectar()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id_respuesta, texto_opcion, es_correcta
+            FROM respuestas_preguntas
+            WHERE id_pregunta = %s
+        """, (id_pregunta,))
+        filas = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        if not filas:
+            return jsonify({"error": "Pregunta no encontrada"}), 404
+
+        correcta_row = next((f for f in filas if f[2]), None)
+        if not correcta_row:
+            return jsonify({"error": "Pregunta sin respuesta correcta cargada"}), 500
+
+        es_correcta = (
+            id_respuesta is not None and
+            any(f[0] == id_respuesta and f[2] for f in filas)
+        )
+
+        return jsonify({
+            "correcta": bool(es_correcta),
+            "id_respuesta_correcta": correcta_row[0],
+            "texto_correcta": correcta_row[1],
+        })
+
+    except Exception as e:
+        return error_response(e)
 
 
 # ─────────────────────────────────────────────────────
@@ -334,21 +444,36 @@ def api_trivias():
 # ─────────────────────────────────────────────────────
 
 @app.route("/api/salas/crear", methods=["POST"])
+@limiter.limit("10 per minute")
 def api_crear_sala():
     """
     Crea una sala nueva.
     Body JSON: { nombre, idPartido, labelPartido, maxJugadores, codigo }
     """
-    data = request.get_json(force=True)
-    nombre       = (data.get("nombre") or "").strip()[:40]
-    id_partido   = str(data.get("idPartido") or "").strip()
-    label_partido= (data.get("labelPartido") or "").strip()[:120]
-    liga_partido = (data.get("ligaPartido") or "").strip()[:80]
-    max_jugadores= min(int(data.get("maxJugadores") or 12), 12)
-    codigo       = (data.get("codigo") or "").strip().upper()[:20]
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Body inválido, se esperaba JSON"}), 400
+
+    nombre        = (data.get("nombre") or "").strip()[:40]
+    id_partido    = str(data.get("idPartido") or "").strip()
+    label_partido = (data.get("labelPartido") or "").strip()[:120]
+    liga_partido  = (data.get("ligaPartido") or "").strip()[:80]
+    codigo        = (data.get("codigo") or "").strip().upper()[:20]
+
+    try:
+        max_jugadores = min(int(data.get("maxJugadores") or 12), 12)
+        if max_jugadores < 1:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "maxJugadores inválido"}), 400
 
     if not nombre or not id_partido or not codigo:
         return jsonify({"error": "Faltan campos obligatorios"}), 400
+
+    # El código de sala lo genera el cliente, pero validamos su formato
+    # para evitar valores raros (whitespace, símbolos de control, etc.)
+    if not codigo.replace("-", "").isalnum():
+        return jsonify({"error": "Código de sala inválido"}), 400
 
     try:
         conn   = conectar()
@@ -374,10 +499,11 @@ def api_crear_sala():
         return jsonify({"sala": sala_a_dict(row)}), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @app.route("/api/salas/<codigo>")
+@limiter.limit("60 per minute")
 def api_get_sala(codigo):
     """Devuelve info de la sala. Si pasaron 2h desde cierre, sigue mostrando ranking."""
     codigo = codigo.upper()
@@ -416,58 +542,142 @@ def api_get_sala(codigo):
         return jsonify({"sala": sala_a_dict(row)})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
+
+
+def _calcular_puntaje_server(conn, id_partido, respuestas):
+    """
+    Recalcula puntos/correctas/errores en el servidor a partir de las
+    respuestas elegidas por el jugador, sin confiar en ningún número
+    que venga del cliente. `respuestas` es una lista de dicts:
+        { id_pregunta, id_respuesta (o None si no contestó), tiempo_restante }
+    Sólo se aceptan preguntas que realmente pertenezcan al id_partido
+    de la sala, para evitar que se "cuelen" preguntas de otro partido.
+    """
+    cursor = conn.cursor()
+    puntos = correctas = errores = 0
+
+    for r in respuestas:
+        id_pregunta = r.get("id_pregunta")
+        id_respuesta = r.get("id_respuesta")
+        try:
+            tiempo_restante = int(r.get("tiempo_restante") or 0)
+        except (TypeError, ValueError):
+            tiempo_restante = 0
+        tiempo_restante = max(0, min(tiempo_restante, 30))  # mismo rango que el timer del quiz
+
+        if id_pregunta is None:
+            continue
+
+        # La pregunta tiene que pertenecer al partido de esta sala
+        cursor.execute("""
+            SELECT 1 FROM preguntas_partido
+            WHERE id_pregunta = %s AND id_partido = %s
+        """, (id_pregunta, id_partido))
+        if not cursor.fetchone():
+            continue  # pregunta ajena a este partido: se ignora
+
+        cursor.execute("""
+            SELECT id_respuesta FROM respuestas_preguntas
+            WHERE id_pregunta = %s AND es_correcta = TRUE
+        """, (id_pregunta,))
+        fila_correcta = cursor.fetchone()
+        es_correcta = bool(fila_correcta and id_respuesta is not None and fila_correcta[0] == id_respuesta)
+
+        if es_correcta:
+            puntos += 10 + tiempo_restante
+            correctas += 1
+        else:
+            errores += 1
+
+    cursor.close()
+    return puntos, correctas, errores
 
 
 @app.route("/api/salas/<codigo>/resultado", methods=["POST"])
+@limiter.limit("30 per minute")
 def api_guardar_resultado(codigo):
     """
     Guarda el resultado de un jugador en la sala.
-    Body: { apodo, puntos, correctas, errores }
+    Body: { apodo, token, respuestas: [{id_pregunta, id_respuesta, tiempo_restante}, ...] }
+
+    El puntaje NO se recibe del cliente: se recalcula acá mismo contra la
+    base de datos a partir de las respuestas elegidas, para que no se
+    pueda falsear el ranking mandando un POST manual con puntos inventados.
+
+    `token` es un identificador aleatorio que genera el navegador la
+    primera vez que el jugador entra a la sala (ver golazo_token_<codigo>
+    en localStorage). Sirve para que otra persona no pueda pisar el
+    resultado de alguien más usando el mismo apodo.
     """
     codigo = codigo.upper()
-    data   = request.get_json(force=True)
-    apodo  = (data.get("apodo") or "Jugador").strip()[:30]
-    puntos = int(data.get("puntos") or 0)
-    correctas = int(data.get("correctas") or 0)
-    errores   = int(data.get("errores") or 0)
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Body inválido, se esperaba JSON"}), 400
+
+    apodo = (data.get("apodo") or "Jugador").strip()[:30]
+    token = (data.get("token") or "").strip()[:64]
+    respuestas = data.get("respuestas")
+    if not apodo:
+        return jsonify({"error": "Falta el apodo"}), 400
+    if not token:
+        return jsonify({"error": "Falta el token de jugador"}), 400
+    if not isinstance(respuestas, list):
+        return jsonify({"error": "Formato de respuestas inválido"}), 400
 
     try:
         conn   = conectar()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         # Verificar que la sala existe y está abierta
-        cursor.execute("SELECT max_jugadores FROM salas WHERE codigo=%s AND estado='abierta'", (codigo,))
+        cursor.execute("SELECT id_partido, max_jugadores FROM salas WHERE codigo=%s AND estado='abierta'", (codigo,))
         sala_row = cursor.fetchone()
         if not sala_row:
             cursor.close(); conn.close()
             return jsonify({"error": "La sala no está abierta o no existe"}), 400
 
-        # Verificar cuántos jugadores ya hay
-        cursor.execute("SELECT COUNT(*) AS total FROM salas_jugador WHERE codigo_sala=%s", (codigo,))
-        count_row = cursor.fetchone()
-        if count_row["total"] >= sala_row["max_jugadores"]:
-            cursor.close(); conn.close()
-            return jsonify({"error": "La sala ya alcanzó el máximo de jugadores"}), 400
-
-        # Insertar o actualizar resultado (upsert por apodo)
+        # Si ya existe una jugada con este apodo en la sala, sólo se puede
+        # actualizar si el token coincide (evita que alguien pise el
+        # resultado de otro jugador usando el mismo apodo).
         cursor.execute("""
-            INSERT INTO salas_jugador (codigo_sala, apodo, puntos, correctas, errores, jugado_en)
-            VALUES (%s, %s, %s, %s, %s, NOW())
+            SELECT jugador_token FROM salas_jugador
+            WHERE codigo_sala=%s AND apodo=%s
+        """, (codigo, apodo))
+        existente = cursor.fetchone()
+        if existente and existente["jugador_token"] and existente["jugador_token"] != token:
+            cursor.close(); conn.close()
+            return jsonify({"error": "Ese apodo ya está en uso en esta sala por otro jugador"}), 409
+
+        # Verificar cuántos jugadores ya hay (sólo aplica a jugadores nuevos)
+        if not existente:
+            cursor.execute("SELECT COUNT(*) AS total FROM salas_jugador WHERE codigo_sala=%s", (codigo,))
+            count_row = cursor.fetchone()
+            if count_row["total"] >= sala_row["max_jugadores"]:
+                cursor.close(); conn.close()
+                return jsonify({"error": "La sala ya alcanzó el máximo de jugadores"}), 400
+
+        # Recalcular el puntaje en el servidor (nunca confiar en el cliente)
+        puntos, correctas, errores = _calcular_puntaje_server(conn, sala_row["id_partido"], respuestas)
+
+        cursor.execute("""
+            INSERT INTO salas_jugador (codigo_sala, apodo, puntos, correctas, errores, jugador_token, jugado_en)
+            VALUES (%s, %s, %s, %s, %s, %s, NOW())
             ON CONFLICT (codigo_sala, apodo) DO UPDATE
               SET puntos=EXCLUDED.puntos, correctas=EXCLUDED.correctas,
-                  errores=EXCLUDED.errores, jugado_en=NOW();
-        """, (codigo, apodo, puntos, correctas, errores))
+                  errores=EXCLUDED.errores, jugador_token=EXCLUDED.jugador_token,
+                  jugado_en=NOW();
+        """, (codigo, apodo, puntos, correctas, errores, token))
         conn.commit()
         cursor.close()
         conn.close()
-        return jsonify({"ok": True})
+        return jsonify({"ok": True, "puntos": puntos, "correctas": correctas, "errores": errores})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 @app.route("/api/salas/<codigo>/ranking")
+@limiter.limit("60 per minute")
 def api_ranking(codigo):
     """Devuelve el ranking de jugadores de la sala, solo si está cerrada."""
     codigo = codigo.upper()
@@ -505,7 +715,7 @@ def api_ranking(codigo):
         return jsonify({"ranking": ranking})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return error_response(e)
 
 
 # ─────────────────────────────────────────────────────
@@ -515,3 +725,4 @@ def api_ranking(codigo):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
