@@ -442,6 +442,11 @@
         <div class="menu-options" id="mundiales-list">
             <p style="text-align:center;">Cargando mundiales...</p>
         </div>
+
+        <div id="ligas-desde-mundial-wrap" style="display:none; margin-top:1.5rem;">
+            <h3>⚽ Ligas</h3>
+            <div class="menu-options" id="ligas-desde-mundial-list"></div>
+        </div>
     </div>
 
     <!-- ══════════════════════════════════════ -->
@@ -783,34 +788,62 @@ async function cargarListaMundiales() {
         </div>
     `;
 
+    const ligasWrap = document.getElementById('ligas-desde-mundial-wrap');
+    const ligasList = document.getElementById('ligas-desde-mundial-list');
+
     lista.innerHTML = '<p style="text-align:center;">Cargando mundiales...</p>';
+    ligasWrap.style.display = 'none';
     try {
         const res   = await fetch('/api/mundiales');
         const datos = await res.json();
         if (datos.error) throw new Error(datos.error);
 
-        // El Mundial 2026 ya tiene su propio ícono arriba, no se duplica en la lista
-        const historicos = (datos.mundiales || []).filter(m => m.anio != 2026);
+        const todos = datos.mundiales || [];
+
+        // Mundiales fijos (es_mundial = 1). El Mundial 2026 ya tiene su propio
+        // ícono arriba, no se duplica en la lista.
+        const historicos = todos.filter(m => m.es_mundial && m.anio != 2026);
+
+        // Ligas cargadas en la misma tabla (es_mundial = 0), acceso directo
+        // por id_mundial a la trivia correspondiente.
+        const ligas = todos.filter(m => !m.es_mundial);
 
         if (!historicos.length) {
             lista.innerHTML = '<p style="text-align:center;color:var(--text-muted);">No hay más mundiales cargados.</p>';
-            return;
+        } else {
+            lista.innerHTML = '';
+            historicos.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'menu-card';
+                card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
+                card.innerHTML = `
+                    <div class="mc-icon">${escapeHtml(m.bandera || '🌍')}</div>
+                    <div class="mc-content">
+                        <div class="mc-title">${escapeHtml(m.detalle)} (${escapeHtml(m.anio)})</div>
+                        <div class="mc-desc">${escapeHtml(m.pais || '')}</div>
+                    </div>
+                `;
+                lista.appendChild(card);
+            });
         }
 
-        lista.innerHTML = '';
-        historicos.forEach(m => {
-            const card = document.createElement('div');
-            card.className = 'menu-card';
-            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
-            card.innerHTML = `
-                <div class="mc-icon">${escapeHtml(m.bandera || '🌍')}</div>
-                <div class="mc-content">
-                    <div class="mc-title">${escapeHtml(m.detalle)} (${escapeHtml(m.anio)})</div>
-                    <div class="mc-desc">${escapeHtml(m.pais || '')}</div>
-                </div>
-            `;
-            lista.appendChild(card);
-        });
+        if (ligas.length) {
+            ligasList.innerHTML = '';
+            ligas.forEach(m => {
+                const card = document.createElement('div');
+                card.className = 'menu-card';
+                card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
+                card.innerHTML = `
+                    <div class="mc-icon">${escapeHtml(m.bandera || '⚽')}</div>
+                    <div class="mc-content">
+                        <div class="mc-title">${escapeHtml(m.detalle)}</div>
+                        <div class="mc-desc">${escapeHtml(m.anio ? String(m.anio) : '')}</div>
+                    </div>
+                `;
+                ligasList.appendChild(card);
+            });
+            ligasWrap.style.display = 'block';
+        }
     } catch (e) {
         lista.innerHTML = '<p style="text-align:center;color:var(--error);">No se pudieron cargar los mundiales.</p>';
     }
