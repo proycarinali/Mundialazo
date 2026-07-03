@@ -239,7 +239,7 @@ def get_mundiales(conn):
     """
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT m.id_mundial, m.detalle, m.anio,
+        SELECT m.id_mundial, m.detalle, m.anio, m.es_mundial,
                (SELECT p.id_partido
                   FROM partidos p
                   JOIN preguntas_partido pp ON pp.id_partido = p.id_partido
@@ -247,13 +247,13 @@ def get_mundiales(conn):
                  ORDER BY p.id_partido
                  LIMIT 1) AS id_partido
         FROM mundial m
-        ORDER BY m.anio;
+        ORDER BY m.es_mundial DESC, m.anio;
     """)
     filas = cursor.fetchall()
     cursor.close()
 
     mundiales = []
-    for (id_mundial, detalle, anio, id_partido) in filas:
+    for (id_mundial, detalle, anio, es_mundial, id_partido) in filas:
         pais, bandera = detectar_pais_bandera(detalle, anio)
         mundiales.append({
             "id_mundial": id_mundial,
@@ -262,6 +262,7 @@ def get_mundiales(conn):
             "pais":       pais,
             "bandera":    bandera,
             "id_partido": id_partido,
+            "es_mundial": bool(es_mundial),
         })
     return mundiales
 
@@ -725,4 +726,3 @@ def api_ranking(codigo):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
-
