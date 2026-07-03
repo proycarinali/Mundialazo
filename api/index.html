@@ -663,6 +663,31 @@ function playBeep(type) {
 }
 
 /* ─────────────────────────────────────────
+   SEGURIDAD: escape de texto antes de insertarlo con innerHTML
+───────────────────────────────────────── */
+function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[c]));
+}
+
+/* ─────────────────────────────────────────
+   TOKEN DE JUGADOR (evita que otra persona
+   pise tu resultado usando tu mismo apodo)
+───────────────────────────────────────── */
+function obtenerTokenJugador(codigoSala) {
+    const key = `golazo_token_${codigoSala}`;
+    let token = localStorage.getItem(key);
+    if (!token) {
+        token = (window.crypto && crypto.randomUUID)
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        localStorage.setItem(key, token);
+    }
+    return token;
+}
+
+/* ─────────────────────────────────────────
    ESTADO GLOBAL
 ───────────────────────────────────────── */
 let modoDemo          = false;
@@ -678,6 +703,7 @@ let preguntaActualObj = null;
 let timerInterval     = null;
 let tiempoRestante    = 30;
 let salaPendiente     = null;   // datos de la sala en proceso de creación
+let respuestasJugador = [];     // respuestas de la partida actual, para validar puntaje en el servidor
 
 /* ─────────────────────────────────────────
    BANCO DEMO (Final Qatar 2022)
@@ -715,7 +741,7 @@ function volverAlMenu() {
 function iniciarModoDemo() {
     modoDemo = true;
     preguntasPartida = BANCO_DEMO;
-    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
+    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0; respuestasJugador = [];
     document.getElementById('local-score').textContent = '0 pts';
     document.getElementById('demo-banner').style.display = 'block';
     document.getElementById('mundial-info-banner').style.display = 'none';
@@ -767,10 +793,10 @@ async function cargarListaMundiales() {
             card.className = 'menu-card';
             card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
             card.innerHTML = `
-                <div class="mc-icon">${m.bandera || '🌍'}</div>
+                <div class="mc-icon">${escapeHtml(m.bandera || '🌍')}</div>
                 <div class="mc-content">
-                    <div class="mc-title">${m.detalle} (${m.anio})</div>
-                    <div class="mc-desc">${m.pais || ''}</div>
+                    <div class="mc-title">${escapeHtml(m.detalle)} (${escapeHtml(m.anio)})</div>
+                    <div class="mc-desc">${escapeHtml(m.pais || '')}</div>
                 </div>
             `;
             lista.appendChild(card);
@@ -788,7 +814,7 @@ async function jugarTriviaMundial(idPartido, detalleMundial, bandera, anio) {
 
     modoDemo = true;
     salaActual = null; esAdmin = false;
-    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
+    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0; respuestasJugador = [];
     document.getElementById('local-score').textContent = '0 pts';
 
     cambiarPantalla('scr-loading');
@@ -1044,7 +1070,7 @@ async function iniciarTriviaSala() {
     cambiarPantalla('scr-loading');
     document.getElementById('loading-msg').textContent = `Cargando trivia para: ${salaActual.labelPartido || 'el partido'}...`;
 
-    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0;
+    puntos = 0; indicePregunta = 0; contadorOK = 0; contadorError = 0; respuestasJugador = [];
     document.getElementById('local-score').textContent = '0 pts';
     document.getElementById('demo-banner').style.display = 'none';
     document.getElementById('mundial-info-banner').style.display = 'none';
@@ -1092,12 +1118,17 @@ function renderizarPregunta() {
     const cont = document.getElementById('container-options');
     cont.innerHTML = '';
     preguntaActualObj.opciones.forEach(op => {
+        // Formato demo local: op es un string. Formato servidor: {id_respuesta, texto}.
+        const esObjeto = op !== null && typeof op === 'object';
+        const texto    = esObjeto ? op.texto : op;
+        const idResp   = esObjeto ? op.id_respuesta : null;
+
         const btn = document.createElement('button');
         btn.className = 'btn-option';
-        btn.textContent = op;
+        btn.textContent = texto;
         btn.onclick = () => {
             audioCtx.resume();
-            verificarRespuesta(op);
+            verificarRespuesta(idResp, texto);
         };
         cont.appendChild(btn);
     });
@@ -1140,21 +1171,60 @@ function detenerTimer() {
     if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
 }
 
-function tiempoAgotado() {
+/**
+ * Resuelve si una respuesta es correcta y cuál era la opción correcta.
+ * - Modo demo/local (BANCO_DEMO): la respuesta correcta ya viene en el
+ *   objeto de la pregunta (son preguntas públicas y fijas, no hay nada
+ *   que proteger) y se resuelve sin llamar al servidor.
+ * - Modo real (preguntas cargadas desde la BD vía /api/trivias): la
+ *   respuesta correcta NO viaja al navegador de antemano. Se valida acá
+ *   contra /api/trivias/verificar, para que no se pueda ver en las
+ *   DevTools antes de contestar.
+ */
+async function resolverRespuesta(idRespuesta, textoOpcion) {
+    if (preguntaActualObj.correcta) {
+        return {
+            correcta: textoOpcion === preguntaActualObj.correcta,
+            textoCorrecta: preguntaActualObj.correcta,
+        };
+    }
+    try {
+        const res = await fetch('/api/trivias/verificar', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_pregunta: preguntaActualObj.id_pregunta, id_respuesta: idRespuesta }),
+        });
+        const datos = await res.json();
+        if (datos.error) throw new Error(datos.error);
+        return { correcta: !!datos.correcta, textoCorrecta: datos.texto_correcta || '' };
+    } catch (e) {
+        console.warn('No se pudo verificar la respuesta con el servidor:', e);
+        return { correcta: false, textoCorrecta: '' };
+    }
+}
+
+async function tiempoAgotado() {
     playBeep('timeout');
 
     const botones = document.querySelectorAll('.btn-option');
+    botones.forEach(b => { b.disabled = true; });
+
+    const { textoCorrecta } = await resolverRespuesta(null, null);
+
     botones.forEach(b => {
-        b.disabled = true;
-        if (b.textContent === preguntaActualObj.correcta) {
+        if (b.textContent === textoCorrecta) {
             b.style.backgroundColor = 'var(--success)';
             b.style.borderColor = 'var(--success)';
             b.style.color = 'white';
         }
     });
 
+    if (preguntaActualObj.id_pregunta !== undefined) {
+        respuestasJugador.push({ id_pregunta: preguntaActualObj.id_pregunta, id_respuesta: null, tiempo_restante: 0 });
+    }
+
     const fb = document.getElementById('box-feedback');
-    fb.textContent = `⏰ ¡Tiempo! La respuesta era: ${preguntaActualObj.correcta}`;
+    fb.textContent = `⏰ ¡Tiempo! La respuesta era: ${textoCorrecta}`;
     fb.className = 'feedback timeout';
     contadorError++;
 
@@ -1164,39 +1234,47 @@ function tiempoAgotado() {
     btnNext.style.display = 'block';
 }
 
-function verificarRespuesta(opcion) {
+async function verificarRespuesta(idRespuesta, opcionTexto) {
     detenerTimer();
+    const tiempoAlResponder = tiempoRestante;
 
     const botones = document.querySelectorAll('.btn-option');
+    botones.forEach(b => { b.disabled = true; });
+
+    const { correcta, textoCorrecta } = await resolverRespuesta(idRespuesta, opcionTexto);
+
     botones.forEach(b => {
-        b.disabled = true;
-        if (b.textContent === preguntaActualObj.correcta) {
+        if (b.textContent === textoCorrecta) {
             b.style.backgroundColor = 'var(--success)';
             b.style.borderColor = 'var(--success)';
             b.style.color = 'white';
         }
-        if (b.textContent === opcion && opcion !== preguntaActualObj.correcta) {
+        if (b.textContent === opcionTexto && !correcta) {
             b.style.backgroundColor = 'var(--error)';
             b.style.borderColor = 'var(--error)';
             b.style.color = 'white';
         }
     });
 
+    if (preguntaActualObj.id_pregunta !== undefined) {
+        respuestasJugador.push({ id_pregunta: preguntaActualObj.id_pregunta, id_respuesta: idRespuesta, tiempo_restante: tiempoAlResponder });
+    }
+
     const fb = document.getElementById('box-feedback');
 
-    if (opcion === preguntaActualObj.correcta) {
+    if (correcta) {
         playBeep('ok');
         // Bonus por rapidez: más puntos cuanto más rápido responde
-        const bonus = Math.max(0, tiempoRestante);
+        const bonus = Math.max(0, tiempoAlResponder);
         const gained = 10 + bonus;
         puntos += gained;
         contadorOK++;
-        fb.textContent = `✅ ¡Correcto! +${gained} pts (${tiempoRestante}s restantes)`;
+        fb.textContent = `✅ ¡Correcto! +${gained} pts (${tiempoAlResponder}s restantes)`;
         fb.className = 'feedback correct';
     } else {
         playBeep('error');
         contadorError++;
-        fb.textContent = `❌ Incorrecto. La respuesta era: ${preguntaActualObj.correcta}`;
+        fb.textContent = `❌ Incorrecto. La respuesta era: ${textoCorrecta}`;
         fb.className = 'feedback incorrect';
     }
 
@@ -1223,12 +1301,22 @@ async function avanzarPregunta() {
 }
 
 async function guardarResultadoSala() {
+    // El puntaje final lo recalcula el servidor a partir de `respuestasJugador`
+    // (nunca se manda `puntos` directamente, para que no se pueda falsear el ranking).
     try {
-        await fetch(`/api/salas/${salaActual.codigo}/resultado`, {
+        const token = obtenerTokenJugador(salaActual.codigo);
+        const res = await fetch(`/api/salas/${salaActual.codigo}/resultado`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ apodo: apodoJugador, puntos, correctas: contadorOK, errores: contadorError }),
+            body: JSON.stringify({ apodo: apodoJugador, token, respuestas: respuestasJugador }),
         });
+        const datos = await res.json();
+        if (datos.error) {
+            console.warn('No se pudo guardar resultado:', datos.error);
+            if (String(datos.error).toLowerCase().includes('apodo')) {
+                alert('Ese apodo ya está en uso en esta sala por otro jugador. Tu puntaje no entró al ranking; elegí otro apodo la próxima vez.');
+            }
+        }
     } catch(e) { console.warn('No se pudo guardar resultado:', e); }
 }
 
@@ -1239,7 +1327,7 @@ function mostrarResultados() {
             <span style="color:var(--success);">✅ Correctas: ${contadorOK}</span>
             <span style="color:var(--error);">❌ Errores: ${contadorError}</span>
         </div>
-        ${apodoJugador ? `<div style="margin-top:8px;color:var(--text-muted);font-size:0.85rem;">Jugador: ${apodoJugador}</div>` : ''}
+        ${apodoJugador ? `<div style="margin-top:8px;color:var(--text-muted);font-size:0.85rem;">Jugador: ${escapeHtml(apodoJugador)}</div>` : ''}
     `;
     document.getElementById('result-liga').textContent =
         salaActual ? `🏟️ ${salaActual.nombre}` : '🎮 Modo demo';
@@ -1290,10 +1378,10 @@ function mostrarRanking(lista) {
             tbody.innerHTML += `
                 <tr>
                     <td class="rank-pos ${cls}">${pos === 1 ? '🥇' : pos === 2 ? '🥈' : pos === 3 ? '🥉' : pos}</td>
-                    <td>${j.apodo}</td>
-                    <td style="text-align:right;font-weight:700;color:var(--success);">${j.puntos}</td>
-                    <td style="text-align:right;color:var(--success);">${j.correctas}</td>
-                    <td style="text-align:right;color:var(--error);">${j.errores}</td>
+                    <td>${escapeHtml(j.apodo)}</td>
+                    <td style="text-align:right;font-weight:700;color:var(--success);">${Number(j.puntos) || 0}</td>
+                    <td style="text-align:right;color:var(--success);">${Number(j.correctas) || 0}</td>
+                    <td style="text-align:right;color:var(--error);">${Number(j.errores) || 0}</td>
                 </tr>`;
         });
     }
