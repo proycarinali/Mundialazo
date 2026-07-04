@@ -69,6 +69,7 @@
             transition: background 0.2s;
             width: 100%;
             margin-top: 12px;
+            touch-action: manipulation;
         }
         .btn:disabled { background-color: #4b5563; cursor: not-allowed; }
         .btn-success { background-color: var(--success); }
@@ -86,6 +87,7 @@
             transition: all 0.2s;
             margin-top: 10px;
             width: 100%;
+            touch-action: manipulation;
         }
 
         /* MENÚ PRINCIPAL */
@@ -107,6 +109,7 @@
             display: flex;
             align-items: center;
             gap: 14px;
+            touch-action: manipulation;
         }
         .menu-card.premium {
             border-color: var(--gold);
@@ -145,6 +148,7 @@
             flex-direction: column;
             align-items: center;
             gap: 6px;
+            touch-action: manipulation;
         }
         .league-card .flag { font-size: 28px; }
         .league-card .name { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.3; }
@@ -169,6 +173,7 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            touch-action: manipulation;
         }
         .match-card.active { border-color: var(--success); background: rgba(16,185,129,0.08); }
         .match-teams { font-size: 14px; font-weight: 600; color: var(--text); }
@@ -185,6 +190,7 @@
             margin-bottom: 20px; cursor: pointer;
             color: var(--text-muted); font-size: 13px;
             width: fit-content; transition: color 0.2s;
+            touch-action: manipulation;
         }
         .section-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
         .league-badge {
@@ -241,6 +247,7 @@
             cursor: pointer;
             font-size: 0.95rem;
             transition: all 0.2s;
+            touch-action: manipulation;
         }
 
         .feedback {
@@ -842,6 +849,24 @@ async function cargarListaMundiales() {
 }
 
 /* ─────────────────────────────────────────
+   ÍCONO SEGÚN LIGA
+   Elige un emoji identificable según el nombre de
+   la competencia, para mostrarlo junto al nombre
+   de la liga en la pantalla de quiz.
+───────────────────────────────────────── */
+function iconoParaLiga(nombreLiga) {
+    const n = (nombreLiga || '').toLowerCase();
+    if (n.includes('libertadores')) return '🇦🇷';                 // Copa Libertadores -> bandera Argentina
+    if (n.includes('europa league') || n.includes('uefa europa')) return '🎖️'; // Europa League
+    if (n.includes('champions')) return '⭐';                      // Champions League
+    if (
+        n.includes('europa') || n.includes('premier') || n.includes('la liga') ||
+        n.includes('bundesliga') || n.includes('serie a') || n.includes('ligue 1')
+    ) return '🗺️';                                                 // Ligas europeas en general -> mapita
+    return '⚽';                                                    // Fallback genérico
+}
+
+/* ─────────────────────────────────────────
    LIGAS (tabla `mundial` con es_mundial = 0)
 ───────────────────────────────────────── */
 async function irALigas() {
@@ -871,9 +896,10 @@ async function cargarListaLigas() {
         ligas.forEach(m => {
             const card = document.createElement('div');
             card.className = 'menu-card';
-            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, m.bandera, m.anio);
+            const icono = iconoParaLiga(m.detalle);
+            card.onclick = () => jugarTriviaMundial(m.id_partido, m.detalle, icono, m.anio, true);
             card.innerHTML = `
-                <div class="mc-icon">${escapeHtml(m.bandera || '⚽')}</div>
+                <div class="mc-icon">${escapeHtml(icono)}</div>
                 <div class="mc-content">
                     <div class="mc-title">${escapeHtml(m.detalle)}</div>
                     <div class="mc-desc">${escapeHtml(m.anio ? String(m.anio) : '')}</div>
@@ -886,7 +912,7 @@ async function cargarListaLigas() {
     }
 }
 
-async function jugarTriviaMundial(idPartido, detalleMundial, bandera, anio) {
+async function jugarTriviaMundial(idPartido, detalleMundial, bandera, anio, esLiga = false) {
     if (!idPartido) {
         alert('Este mundial todavía no tiene trivia cargada.');
         return;
@@ -912,8 +938,12 @@ async function jugarTriviaMundial(idPartido, detalleMundial, bandera, anio) {
 
     document.getElementById('demo-banner').style.display = 'none';
     document.getElementById('quiz-sala-info').style.display = 'none';
-    document.getElementById('mundial-info-bandera').textContent = bandera || '🌍';
-    document.getElementById('mundial-info-anio').textContent = anio || '';
+    document.getElementById('mundial-info-bandera').textContent = bandera || (esLiga ? iconoParaLiga(detalleMundial) : '🌍');
+    // Si es una liga, mostramos el nombre de la liga (con el año al lado si existe).
+    // Si es un Mundial histórico, mantenemos el comportamiento original (solo año).
+    document.getElementById('mundial-info-anio').textContent = esLiga
+        ? `${detalleMundial || ''}${anio ? ' · ' + anio : ''}`
+        : (anio || '');
     document.getElementById('mundial-info-banner').style.display = 'block';
     cambiarPantalla('scr-quiz');
     renderizarPregunta();
